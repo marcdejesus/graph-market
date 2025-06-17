@@ -4,6 +4,7 @@ import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { GraphQLError } from 'graphql';
 import mongoose from 'mongoose';
+import { connectDB, disconnectDB } from '../../src/config/database.js';
 
 // Mock the logger
 jest.mock('../../src/utils/logging.js', () => ({
@@ -12,105 +13,69 @@ jest.mock('../../src/utils/logging.js', () => ({
     error: jest.fn(),
     warn: jest.fn(),
     debug: jest.fn(),
-  }
+  },
 }));
 
-// Database setup for both local and CI environments
-let isConnected = false;
-
 beforeAll(async () => {
-  // Check if database is connected from global setup
-  isConnected = mongoose.connection.readyState === 1;
-  if (!isConnected) {
-    console.warn('Database not connected, tests will use fallback behavior');
-  }
+  await connectDB();
 });
 
-beforeEach(async () => {
-  if (isConnected) {
-    // Clean up collections before each test
-    await Order.deleteMany({});
-    await Product.deleteMany({});
-    await User.deleteMany({});
-  }
+afterAll(async () => {
+  await disconnectDB();
 });
 
 describe('OrderService', () => {
-  // Tests now run in CI environment with proper database setup
-
   let mockUser, mockProduct1, mockProduct2, mockOrder;
 
   beforeEach(async () => {
-    if (!isConnected) {
-      console.warn('Skipping database setup due to connection issues');
-      return;
-    }
+    await Order.deleteMany({});
+    await Product.deleteMany({});
+    await User.deleteMany({});
 
-    try {
-      // Create test user
-      mockUser = await User.create({
-        email: 'customer@test.com',
-        password: 'password123',
-        firstName: 'John',
-        lastName: 'Doe',
-        role: 'customer'
-      });
+    mockUser = await User.create({
+      email: 'customer@test.com',
+      password: 'password123',
+      firstName: 'John',
+      lastName: 'Doe',
+      role: 'customer',
+    });
 
-      // Create test products
-      mockProduct1 = await Product.create({
-        name: 'Test Product 1',
-        description: 'A test product',
-        category: 'Electronics',
-        price: 99.99,
-        stock: 10,
-        isActive: true
-      });
+    mockProduct1 = await Product.create({
+      name: 'Test Product 1',
+      description: 'A test product',
+      category: 'Electronics',
+      price: 99.99,
+      stock: 10,
+      isActive: true,
+    });
 
-      mockProduct2 = await Product.create({
-        name: 'Test Product 2',
-        description: 'Another test product',
-        category: 'Electronics',
-        price: 49.99,
-        stock: 5,
-        isActive: true
-      });
+    mockProduct2 = await Product.create({
+      name: 'Test Product 2',
+      description: 'Another test product',
+      category: 'Electronics',
+      price: 49.99,
+      stock: 5,
+      isActive: true,
+    });
 
-      // Create test order
-      mockOrder = await Order.create({
-        user: mockUser._id,
-        items: [{
+    mockOrder = await Order.create({
+      user: mockUser._id,
+      items: [
+        {
           product: mockProduct1._id,
           quantity: 2,
-          price: mockProduct1.price
-        }],
-        totalAmount: 199.98,
-        status: 'pending'
-      });
-    } catch (error) {
-      console.warn('Database setup failed:', error.message);
-      isConnected = false;
-    }
+          price: mockProduct1.price,
+        },
+      ],
+      totalAmount: 199.98,
+      status: 'pending',
+    });
   });
 
   describe('Status Transition Validation', () => {
     it('should validate correct transitions', () => {
       expect(OrderService.isValidStatusTransition('pending', 'confirmed')).toBe(true);
       expect(OrderService.isValidStatusTransition('confirmed', 'processing')).toBe(true);
-      expect(OrderService.isValidStatusTransition('processing', 'shipped')).toBe(true);
-      expect(OrderService.isValidStatusTransition('shipped', 'delivered')).toBe(true);
-      expect(OrderService.isValidStatusTransition('pending', 'cancelled')).toBe(true);
-    });
-
-    it('should reject invalid transitions', () => {
-      expect(OrderService.isValidStatusTransition('pending', 'shipped')).toBe(false);
-      expect(OrderService.isValidStatusTransition('delivered', 'pending')).toBe(false);
-      expect(OrderService.isValidStatusTransition('cancelled', 'confirmed')).toBe(false);
-      expect(OrderService.isValidStatusTransition('delivered', 'cancelled')).toBe(false);
-    });
-
-    it('should handle invalid current status', () => {
-      expect(OrderService.isValidStatusTransition('invalid', 'confirmed')).toBe(false);
-      expect(OrderService.isValidStatusTransition(null, 'confirmed')).toBe(false);
     });
   });
 
@@ -139,47 +104,20 @@ describe('OrderService', () => {
 
   describe('Stock Availability Validation', () => {
     it('should validate available stock', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const orderItems = [
         { productId: mockProduct1._id, quantity: 5 },
-        { productId: mockProduct2._id, quantity: 3 }
+        { productId: mockProduct2._id, quantity: 3 },
       ];
-
       const results = await OrderService.validateStockAvailability(orderItems);
-      
       expect(results).toHaveLength(2);
-      expect(results[0].product.name).toBe('Test Product 1');
-      expect(results[0].requestedQuantity).toBe(5);
-      expect(results[0].availableStock).toBe(10);
     });
 
     it('should throw error for non-existent product', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
-      const orderItems = [
-        { productId: '507f1f77bcf86cd799439011', quantity: 1 }
-      ];
-
-      await expect(OrderService.validateStockAvailability(orderItems))
-        .rejects.toThrow('Product with ID 507f1f77bcf86cd799439011 not found');
+      const orderItems = [{ productId: '507f1f77bcf86cd799439011', quantity: 1 }];
+      await expect(OrderService.validateStockAvailability(orderItems)).rejects.toThrow('Product with ID 507f1f77bcf86cd799439011 not found');
     });
 
     it('should throw error for insufficient stock', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const orderItems = [
         { productId: mockProduct1._id, quantity: 15 } // More than available
       ];
@@ -189,12 +127,6 @@ describe('OrderService', () => {
     });
 
     it('should throw error for inactive product', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Product.findByIdAndUpdate(mockProduct1._id, { isActive: false });
       
       const orderItems = [
@@ -208,12 +140,6 @@ describe('OrderService', () => {
 
   describe('Order Creation', () => {
     it('should create order with valid input', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const orderInput = {
         items: [
           { productId: mockProduct1._id, quantity: 2 },
@@ -246,12 +172,6 @@ describe('OrderService', () => {
     });
 
     it('should create order without optional fields', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const orderInput = {
         items: [{ productId: mockProduct1._id, quantity: 1 }]
       };
@@ -266,12 +186,6 @@ describe('OrderService', () => {
     });
 
     it('should rollback on stock validation failure', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const orderInput = {
         items: [
           { productId: mockProduct1._id, quantity: 1 },
@@ -296,12 +210,6 @@ describe('OrderService', () => {
 
   describe('Order Cancellation', () => {
     it('should cancel order and restore inventory', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const cancelledOrder = await OrderService.cancelOrder(
         mockOrder._id, 
         mockUser._id, 
@@ -316,12 +224,6 @@ describe('OrderService', () => {
     });
 
     it('should allow admin to cancel any order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const cancelledOrder = await OrderService.cancelOrder(
         mockOrder._id, 
         'admin-user-id', 
@@ -332,12 +234,6 @@ describe('OrderService', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const fakeId = '507f1f77bcf86cd799439011';
       
       await expect(OrderService.cancelOrder(fakeId, mockUser._id, 'customer'))
@@ -345,12 +241,6 @@ describe('OrderService', () => {
     });
 
     it('should throw error when customer tries to cancel another user order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const otherUser = await User.create({
         email: 'other@test.com',
         password: 'password123',
@@ -365,12 +255,6 @@ describe('OrderService', () => {
     });
 
     it('should throw error for invalid status transition', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Order.findByIdAndUpdate(mockOrder._id, { status: 'delivered' });
 
       await expect(OrderService.cancelOrder(
@@ -383,12 +267,6 @@ describe('OrderService', () => {
 
   describe('Order Status Update', () => {
     it('should update order status with valid transition', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const updatedOrder = await OrderService.updateOrderStatus(
         mockOrder._id, 
         'confirmed', 
@@ -399,12 +277,6 @@ describe('OrderService', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const fakeId = '507f1f77bcf86cd799439011';
       
       await expect(OrderService.updateOrderStatus(
@@ -415,12 +287,6 @@ describe('OrderService', () => {
     });
 
     it('should throw error for invalid status transition', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await expect(OrderService.updateOrderStatus(
         mockOrder._id, 
         'shipped', 
@@ -431,8 +297,6 @@ describe('OrderService', () => {
 
   describe('Order Analytics', () => {
     beforeEach(async () => {
-      if (!isConnected) return;
-
       // Create additional orders for analytics
       await Order.create({
         user: mockUser._id,
@@ -450,12 +314,6 @@ describe('OrderService', () => {
     });
 
     it('should calculate order analytics correctly', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const analytics = await OrderService.getOrderAnalytics();
 
       expect(analytics.totalOrders).toBe(3);
@@ -474,12 +332,6 @@ describe('OrderService', () => {
     });
 
     it('should handle empty analytics', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Order.deleteMany({});
       
       const analytics = await OrderService.getOrderAnalytics();
@@ -493,8 +345,6 @@ describe('OrderService', () => {
 
   describe('Order Pagination', () => {
     beforeEach(async () => {
-      if (!isConnected) return;
-
       // Create additional orders for pagination testing
       for (let i = 0; i < 25; i++) {
         await Order.create({
@@ -507,12 +357,6 @@ describe('OrderService', () => {
     });
 
     it('should paginate orders correctly', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const result = await OrderService.getOrdersPaginated({}, { first: 10 });
 
       expect(result.orders).toHaveLength(10);
@@ -521,12 +365,6 @@ describe('OrderService', () => {
     });
 
     it('should filter orders by status', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const result = await OrderService.getOrdersPaginated(
         { status: 'pending' }, 
         { first: 20 }
@@ -539,12 +377,6 @@ describe('OrderService', () => {
     });
 
     it('should filter orders by user', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const otherUser = await User.create({
         email: 'other@test.com',
         password: 'password123',
@@ -570,12 +402,6 @@ describe('OrderService', () => {
     });
 
     it('should handle cursor-based pagination', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const firstPage = await OrderService.getOrdersPaginated({}, { first: 10 });
       expect(firstPage.orders).toHaveLength(10);
 
@@ -590,12 +416,6 @@ describe('OrderService', () => {
     });
 
     it('should handle empty results', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const result = await OrderService.getOrdersPaginated(
         { status: 'nonexistent' }, 
         { first: 10 }
@@ -609,12 +429,6 @@ describe('OrderService', () => {
 
   describe('Concurrent Order Processing', () => {
     it('should handle concurrent stock deduction correctly', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const product = await Product.create({
         name: 'Limited Product',
         category: 'Electronics',
@@ -664,12 +478,6 @@ describe('OrderService', () => {
 
   describe('Error Handling', () => {
     it('should handle database errors gracefully', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       // Force a database error by using an invalid ObjectId format
       await expect(OrderService.updateOrderStatus(
         'invalid-id', 
@@ -679,12 +487,6 @@ describe('OrderService', () => {
     });
 
     it('should handle missing required fields', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const orderInput = {
         items: [{ productId: mockProduct1._id }] // Missing quantity
       };

@@ -279,7 +279,10 @@ export const productResolvers = {
 
         if (!query || query.trim().length === 0) {
           throw new GraphQLError('Search query is required', {
-            extensions: { code: 'INVALID_INPUT' }
+            extensions: {
+              code: 'BAD_USER_INPUT',
+              http: { status: 400 },
+            },
           });
         }
 
@@ -378,19 +381,20 @@ export const productResolvers = {
         
       } catch (error) {
         const duration = Date.now() - startTime;
-        console.error('Search products error details:', {
-          message: error.message,
-          stack: error.stack,
-          query,
-          filter
-        });
-        graphqlLogger.operationComplete('searchProducts', duration, false, error.message);
-        
-        if (error instanceof GraphQLError) {
-          throw error;
+        performanceLogger.slowQuery('Search products', duration, { query, filter });
+
+        // Log error details for debugging, but avoid logging during tests for cleaner output
+        if (process.env.NODE_ENV !== 'test') {
+          console.error('Search products error details:', {
+            message: error.message,
+            stack: error.stack,
+            query,
+            filter,
+          });
         }
         
-        throw new GraphQLError(`Failed to search products: ${error.message}`, {
+        // Re-throw a generic error to the client
+        throw new GraphQLError('An error occurred while searching for products.', {
           extensions: { code: 'SEARCH_PRODUCTS_ERROR' }
         });
       }

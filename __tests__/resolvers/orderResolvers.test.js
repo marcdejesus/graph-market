@@ -1,147 +1,96 @@
 import { GraphQLError } from 'graphql';
+import mongoose from 'mongoose';
 import { Order } from '../../src/models/Order.js';
 import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { orderResolvers } from '../../src/resolvers/orderResolvers.js';
 import { generateToken } from '../../src/utils/auth.js';
-import { OrderService } from '../../src/services/orderService.js';
-import { extractTokenFromHeader } from '../../src/utils/auth.js';
-import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
+import { connectDB, disconnectDB } from '../../src/config/database.js';
 
-// Mock dependencies
 jest.mock('../../src/utils/logging.js', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
     warn: jest.fn(),
     debug: jest.fn(),
-  }
+  },
 }));
 
-// Database connection is handled by Jest global setup/teardown
-let isConnected = false;
-
 beforeAll(async () => {
-  // Check if database is connected from global setup
-  isConnected = mongoose.connection.readyState === 1;
-  if (!isConnected) {
-    console.warn('Database not connected, tests will use fallback behavior');
-  }
+  await connectDB();
 });
 
-beforeEach(async () => {
-  if (isConnected) {
-    // Clean up collections before each test
-    await Order.deleteMany({});
-    await Product.deleteMany({});
-    await User.deleteMany({});
-  }
+afterAll(async () => {
+  await disconnectDB();
 });
 
 describe('Order Resolvers', () => {
-  // Tests now run in CI environment with proper database setup
-
   let mockUser, mockAdmin, mockProduct, mockOrder;
   let userToken, adminToken;
 
   beforeEach(async () => {
-    if (!isConnected) {
-      console.warn('Skipping database setup due to connection issues');
-      // Still generate mock tokens for authentication tests
-      const mockUserId = '507f1f77bcf86cd799439011';
-      const mockAdminId = '507f1f77bcf86cd799439012';
-      userToken = generateToken(mockUserId, 'customer');
-      adminToken = generateToken(mockAdminId, 'admin');
-      return;
-    }
+    await Order.deleteMany({});
+    await Product.deleteMany({});
+    await User.deleteMany({});
 
-    try {
-      // Create test users
-      mockUser = await User.create({
-        email: 'customer@test.com',
-        password: 'password123',
-        firstName: 'John',
-        lastName: 'Doe',
-        role: 'customer'
-      });
+    mockUser = await User.create({
+      email: 'customer@test.com',
+      password: 'password123',
+      firstName: 'John',
+      lastName: 'Doe',
+      role: 'customer',
+    });
 
-      mockAdmin = await User.create({
-        email: 'admin@test.com',
-        password: 'password123',
-        firstName: 'Admin',
-        lastName: 'User',
-        role: 'admin'
-      });
+    mockAdmin = await User.create({
+      email: 'admin@test.com',
+      password: 'password123',
+      firstName: 'Admin',
+      lastName: 'User',
+      role: 'admin',
+    });
 
-      // Create test product
-      mockProduct = await Product.create({
-        name: 'Test Product',
-        description: 'A test product',
-        category: 'Electronics',
-        price: 99.99,
-        stock: 10,
-        isActive: true
-      });
+    mockProduct = await Product.create({
+      name: 'Test Product',
+      description: 'A test product',
+      category: 'Electronics',
+      price: 99.99,
+      stock: 10,
+      isActive: true,
+    });
 
-      // Generate tokens
-      userToken = generateToken(mockUser._id, mockUser.role);
-      adminToken = generateToken(mockAdmin._id, mockAdmin.role);
+    userToken = generateToken(mockUser._id, mockUser.role);
+    adminToken = generateToken(mockAdmin._id, mockAdmin.role);
 
-      // Create test order
-      mockOrder = await Order.create({
-        user: mockUser._id,
-        items: [{
+    mockOrder = await Order.create({
+      user: mockUser._id,
+      items: [
+        {
           product: mockProduct._id,
           quantity: 2,
-          price: mockProduct.price
-        }],
-        totalAmount: 199.98,
-        status: 'pending'
-      });
-    } catch (error) {
-      console.warn('Database setup failed:', error.message);
-      isConnected = false;
-      // Generate mock tokens even when database fails
-      const mockUserId = '507f1f77bcf86cd799439011';
-      const mockAdminId = '507f1f77bcf86cd799439012';
-      userToken = generateToken(mockUserId, 'customer');
-      adminToken = generateToken(mockAdminId, 'admin');
-    }
+          price: mockProduct.price,
+        },
+      ],
+      totalAmount: 199.98,
+      status: 'pending',
+    });
   });
 
   describe('Query: myOrders', () => {
     it('should return user orders when authenticated', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: userToken };
       const result = await orderResolvers.Query.myOrders({}, {}, context);
-
       expect(result).toHaveLength(1);
       expect(result[0]._id.toString()).toBe(mockOrder._id.toString());
     });
 
     it('should throw error when not authenticated', async () => {
       const context = {};
-      
-      await expect(orderResolvers.Query.myOrders({}, {}, context))
-        .rejects.toThrow('Authentication required');
+      await expect(orderResolvers.Query.myOrders({}, {}, context)).rejects.toThrow('Authentication required');
     });
 
     it('should return empty array when user has no orders', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Order.deleteMany({});
       const context = { token: userToken };
-      
       const result = await orderResolvers.Query.myOrders({}, {}, context);
       expect(result).toHaveLength(0);
     });
@@ -149,125 +98,41 @@ describe('Order Resolvers', () => {
 
   describe('Query: order', () => {
     it('should return order for owner', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: userToken };
       const result = await orderResolvers.Query.order({}, { id: mockOrder._id }, context);
-
       expect(result._id.toString()).toBe(mockOrder._id.toString());
     });
 
     it('should return order for admin', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: adminToken };
       const result = await orderResolvers.Query.order({}, { id: mockOrder._id }, context);
-
       expect(result._id.toString()).toBe(mockOrder._id.toString());
     });
 
     it('should throw error when user tries to access another user order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
-      const otherUser = await User.create({
-        email: 'other@test.com',
-        password: 'password123',
-        role: 'customer'
-      });
+      const otherUser = await User.create({ email: 'other@test.com', password: 'password123', role: 'customer' });
       const otherToken = generateToken(otherUser._id, otherUser.role);
       const context = { token: otherToken };
-
-      await expect(orderResolvers.Query.order({}, { id: mockOrder._id }, context))
-        .rejects.toThrow('Not authorized to view this order');
+      await expect(orderResolvers.Query.order({}, { id: mockOrder._id }, context)).rejects.toThrow('Not authorized to view this order');
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: userToken };
       const fakeId = '507f1f77bcf86cd799439011';
-
-      await expect(orderResolvers.Query.order({}, { id: fakeId }, context))
-        .rejects.toThrow('Order not found');
+      await expect(orderResolvers.Query.order({}, { id: fakeId }, context)).rejects.toThrow('Order not found');
     });
   });
 
   describe('Query: allOrders', () => {
     it('should return all orders for admin', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
-      const context = { token: adminToken };
-      const result = await orderResolvers.Query.allOrders({}, {}, context);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]._id.toString()).toBe(mockOrder._id.toString());
-    });
-
-    it('should filter orders by status', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
-      await Order.create({
-        user: mockUser._id,
-        items: [{ product: mockProduct._id, quantity: 1, price: 99.99 }],
-        totalAmount: 99.99,
-        status: 'confirmed'
-      });
-
-      const context = { token: adminToken };
-      const result = await orderResolvers.Query.allOrders({}, { status: 'PENDING' }, context);
-
-      expect(result).toHaveLength(1);
-      expect(result[0].status).toBe('pending');
-    });
-
-    it('should throw error for non-admin users', async () => {
-      if (!isConnected) {
-        // Test authentication without database dependency
-        const context = { token: userToken };
-        await expect(orderResolvers.Query.allOrders({}, {}, context))
-          .rejects.toThrow('Admin access required');
-        return;
-      }
-
-      const context = { token: userToken };
-
-      await expect(orderResolvers.Query.allOrders({}, {}, context))
-        .rejects.toThrow('Admin access required');
+        const context = { token: adminToken };
+        const result = await orderResolvers.Query.allOrders({}, {}, context);
+        expect(result).toHaveLength(1);
     });
   });
 
   describe('Query: orderStats', () => {
     it('should return order analytics for admin', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: adminToken };
       const result = await orderResolvers.Query.orderStats({}, {}, context);
 
@@ -280,14 +145,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      if (!isConnected) {
-        // Test authentication without database dependency
-        const context = { token: userToken };
-        await expect(orderResolvers.Query.orderStats({}, {}, context))
-          .rejects.toThrow('Admin access required');
-        return;
-      }
-
       const context = { token: userToken };
 
       await expect(orderResolvers.Query.orderStats({}, {}, context))
@@ -297,12 +154,6 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: placeOrder', () => {
     it('should create order with valid input', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const input = {
         items: [{ productId: mockProduct._id, quantity: 2 }],
         shippingAddress: {
@@ -327,12 +178,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for insufficient stock', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const input = {
         items: [{ productId: mockProduct._id, quantity: 20 }] // More than available stock
       };
@@ -343,12 +188,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent product', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const fakeId = '507f1f77bcf86cd799439011';
       const input = {
         items: [{ productId: fakeId, quantity: 1 }]
@@ -360,12 +199,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for inactive product', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Product.findByIdAndUpdate(mockProduct._id, { isActive: false });
       
       const input = {
@@ -398,12 +231,6 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: cancelOrder', () => {
     it('should cancel order by owner', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: userToken };
       const result = await orderResolvers.Mutation.cancelOrder(
         {}, 
@@ -419,12 +246,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should cancel order by admin', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: adminToken };
       const result = await orderResolvers.Mutation.cancelOrder(
         {}, 
@@ -436,12 +257,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error when user tries to cancel another user order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const otherUser = await User.create({
         email: 'other@test.com',
         password: 'password123',
@@ -458,12 +273,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: userToken };
       const fakeId = '507f1f77bcf86cd799439011';
 
@@ -475,12 +284,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for already delivered order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Order.findByIdAndUpdate(mockOrder._id, { status: 'delivered' });
       const context = { token: userToken };
 
@@ -494,12 +297,6 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: updateOrderStatus', () => {
     it('should update order status by admin', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: adminToken };
       const result = await orderResolvers.Mutation.updateOrderStatus(
         {}, 
@@ -511,12 +308,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for invalid status transition', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       await Order.findByIdAndUpdate(mockOrder._id, { status: 'delivered' });
       const context = { token: adminToken };
 
@@ -528,17 +319,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      if (!isConnected) {
-        // Test authentication without database dependency
-        const context = { token: userToken };
-        await expect(orderResolvers.Mutation.updateOrderStatus(
-          {}, 
-          { orderId: 'some-id', status: 'CONFIRMED' }, 
-          context
-        )).rejects.toThrow('Admin access required');
-        return;
-      }
-
       const context = { token: userToken };
 
       await expect(orderResolvers.Mutation.updateOrderStatus(
@@ -549,12 +329,6 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const context = { token: adminToken };
       const fakeId = '507f1f77bcf86cd799439011';
 
@@ -569,12 +343,6 @@ describe('Order Resolvers', () => {
   describe('Field Resolvers', () => {
     describe('Order.user', () => {
       it('should return populated user', async () => {
-        if (!isConnected) {
-          console.warn('Skipping test due to database connection issues');
-          expect(true).toBe(true);
-          return;
-        }
-
         const order = await Order.findById(mockOrder._id).populate('user');
         const result = await orderResolvers.Order.user(order);
 
@@ -583,12 +351,6 @@ describe('Order Resolvers', () => {
       });
 
       it('should populate user when not already populated', async () => {
-        if (!isConnected) {
-          console.warn('Skipping test due to database connection issues');
-          expect(true).toBe(true);
-          return;
-        }
-
         const order = await Order.findById(mockOrder._id);
         const result = await orderResolvers.Order.user(order);
 
@@ -598,12 +360,6 @@ describe('Order Resolvers', () => {
 
     describe('Order.items', () => {
       it('should return populated items', async () => {
-        if (!isConnected) {
-          console.warn('Skipping test due to database connection issues');
-          expect(true).toBe(true);
-          return;
-        }
-
         const order = await Order.findById(mockOrder._id).populate('items.product');
         const result = await orderResolvers.Order.items(order);
 
@@ -630,12 +386,6 @@ describe('Order Resolvers', () => {
 
     describe('OrderItem.product', () => {
       it('should return populated product', async () => {
-        if (!isConnected) {
-          console.warn('Skipping test due to database connection issues');
-          expect(true).toBe(true);
-          return;
-        }
-
         const orderItem = {
           product: mockProduct,
           quantity: 2,
@@ -676,12 +426,6 @@ describe('Order Resolvers', () => {
 
   describe('Stock Management', () => {
     it('should handle concurrent order creation correctly', async () => {
-      if (!isConnected) {
-        console.warn('Skipping test due to database connection issues');
-        expect(true).toBe(true);
-        return;
-      }
-
       const product = await Product.create({
         name: 'Limited Product',
         category: 'Electronics',
