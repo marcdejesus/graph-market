@@ -14,6 +14,7 @@
     "test:performance": "jest --config jest.config.cjs --selectProjects performance",
     "test:coverage": "jest --config jest.config.cjs --coverage",
     "test:all": "jest --config jest.config.cjs --selectProjects unit integration performance",
+    "lint": "echo 'Linting configured - No linter setup yet'",
     "build": "echo 'No build step required'",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
