@@ -1,5 +1,5 @@
 import { userSessionCache } from '../../src/services/userSessionCache.js';
-import { ensureTestDBConnection } from '../utils/testDB.js';
+import { ensureTestDBConnection, closeTestDBConnection } from '../utils/testDB.js';
 import { cache } from '../../src/config/redis.js';
 
 describe('UserSessionCache Service', () => {
@@ -9,6 +9,10 @@ describe('UserSessionCache Service', () => {
   
   beforeAll(async () => {
     await ensureTestDBConnection();
+  });
+
+  afterAll(async () => {
+    await closeTestDBConnection();
   });
   
   beforeEach(async () => {

@@ -1,4 +1,4 @@
-import { ensureTestDBConnection } from '../utils/testDB.js';
+import { ensureTestDBConnection, closeTestDBConnection } from '../utils/testDB.js';
 import { cache } from '../../src/config/redis.js';
 import { userSessionCache } from '../../src/services/userSessionCache.js';
 import { createDataLoaders } from '../../src/services/dataLoaders.js';
@@ -6,6 +6,10 @@ import { createDataLoaders } from '../../src/services/dataLoaders.js';
 describe('Phase 4: Caching & Performance Integration', () => {
   beforeAll(async () => {
     await ensureTestDBConnection();
+  });
+
+  afterAll(async () => {
+    await closeTestDBConnection();
   });
   
   beforeEach(async () => {

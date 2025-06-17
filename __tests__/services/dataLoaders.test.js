@@ -2,7 +2,7 @@ import { createDataLoaders } from '../../src/services/dataLoaders.js';
 import { User } from '../../src/models/User.js';
 import { Product } from '../../src/models/Product.js';
 import { Order } from '../../src/models/Order.js';
-import { ensureTestDBConnection, clearTestCollections } from '../utils/testDB.js';
+import { ensureTestDBConnection, clearTestCollections, closeTestDBConnection } from '../utils/testDB.js';
 import { cache } from '../../src/config/redis.js';
 
 describe('DataLoader Services', () => {
@@ -12,6 +12,10 @@ describe('DataLoader Services', () => {
   
   beforeAll(async () => {
     await ensureTestDBConnection();
+  });
+
+  afterAll(async () => {
+    await closeTestDBConnection();
   });
   
   beforeEach(async () => {
