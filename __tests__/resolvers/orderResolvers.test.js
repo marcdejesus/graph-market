@@ -6,7 +6,7 @@ import { User } from '../../src/models/User.js';
 import { orderResolvers } from '../../src/resolvers/orderResolvers.js';
 import { OrderService } from '../../src/services/orderService.js';
 import { generateToken } from '../../src/utils/auth.js';
-import { ensureTestDBConnection, clearTestCollections } from '../utils/testDB.js';
+import { ensureTestDBConnection, clearTestCollections, closeTestDBConnection } from '../utils/testDB.js';
 
 jest.mock('../../src/utils/logging.js', () => ({
   logger: {
@@ -20,6 +20,10 @@ jest.mock('../../src/utils/logging.js', () => ({
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
   await ensureTestDBConnection();
+});
+
+afterAll(async () => {
+  await closeTestDBConnection();
 });
 
 describe('Order Resolvers', () => {

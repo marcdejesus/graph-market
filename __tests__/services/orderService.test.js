@@ -4,7 +4,7 @@ import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { GraphQLError } from 'graphql';
 import mongoose from 'mongoose';
-import { ensureTestDBConnection, clearTestCollections } from '../utils/testDB.js';
+import { ensureTestDBConnection, clearTestCollections, closeTestDBConnection } from '../utils/testDB.js';
 
 // Mock the logger
 jest.mock('../../src/utils/logging.js', () => ({
@@ -19,6 +19,10 @@ jest.mock('../../src/utils/logging.js', () => ({
 beforeAll(async () => {
   process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
   await ensureTestDBConnection();
+});
+
+afterAll(async () => {
+  await closeTestDBConnection();
 });
 
 describe('OrderService', () => {

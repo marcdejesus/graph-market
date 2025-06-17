@@ -39,9 +39,17 @@ export const clearTestCollections = async () => {
 };
 
 export const closeTestDBConnection = async () => {
-  if (mongoose.connection.readyState !== 0) {
+  try {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+    }
+    
+    // Also call disconnect to ensure cleanup
     await mongoose.disconnect();
+    
     isConnected = false;
     console.log('✅ Test database connection closed');
+  } catch (error) {
+    console.warn('⚠️ Error closing test database connection:', error.message);
   }
 }; 
