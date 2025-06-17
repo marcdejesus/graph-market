@@ -33,6 +33,11 @@ export class UserSessionCache {
    * Cache user session data
    */
   async setUserSession(userId, sessionData) {
+    // Return false if cache is not available
+    if (!cache || !cache.set) {
+      return false;
+    }
+    
     const key = `${this.KEYS.USER_SESSION}:${userId}`;
     
     try {
@@ -48,7 +53,7 @@ export class UserSessionCache {
       // Track active sessions
       await this.trackActiveSession(userId);
       
-      performanceLogger.cacheSet(key, 'userSession');
+      try { performanceLogger.cacheSet(key, 'userSession'); } catch (e) {}
       return true;
     } catch (error) {
       console.error('Cache set error for user session:', error);
@@ -60,6 +65,11 @@ export class UserSessionCache {
    * Get cached user session
    */
   async getUserSession(userId) {
+    // Return null if cache is not available
+    if (!cache || !cache.get) {
+      return null;
+    }
+    
     const key = `${this.KEYS.USER_SESSION}:${userId}`;
     
     try {
@@ -70,11 +80,11 @@ export class UserSessionCache {
         cached.lastActivity = Date.now();
         await cache.set(key, cached, this.TTL.USER_SESSION);
         
-        performanceLogger.cacheHit(key, 'userSession');
+        try { performanceLogger.cacheHit(key, 'userSession'); } catch (e) {}
         return cached;
       }
       
-      performanceLogger.cacheMiss(key, 'userSession');
+      try { performanceLogger.cacheMiss(key, 'userSession'); } catch (e) {}
       return null;
     } catch (error) {
       console.error('Cache get error for user session:', error);
@@ -86,6 +96,11 @@ export class UserSessionCache {
    * Cache user profile data
    */
   async setUserProfile(userId, profileData) {
+    // Return false if cache is not available
+    if (!cache || !cache.set) {
+      return false;
+    }
+    
     const key = `${this.KEYS.USER_PROFILE}:${userId}`;
     
     try {
@@ -95,7 +110,7 @@ export class UserSessionCache {
         cachedAt: Date.now(),
       }, this.TTL.USER_PROFILE);
       
-      performanceLogger.cacheSet(key, 'userProfile');
+      try { performanceLogger.cacheSet(key, 'userProfile'); } catch (e) {}
       return true;
     } catch (error) {
       console.error('Cache set error for user profile:', error);
@@ -107,17 +122,22 @@ export class UserSessionCache {
    * Get cached user profile
    */
   async getUserProfile(userId) {
+    // Return null if cache is not available
+    if (!cache || !cache.get) {
+      return null;
+    }
+    
     const key = `${this.KEYS.USER_PROFILE}:${userId}`;
     
     try {
       const cached = await cache.get(key);
       
       if (cached) {
-        performanceLogger.cacheHit(key, 'userProfile');
+        try { performanceLogger.cacheHit(key, 'userProfile'); } catch (e) {}
         return cached;
       }
       
-      performanceLogger.cacheMiss(key, 'userProfile');
+      try { performanceLogger.cacheMiss(key, 'userProfile'); } catch (e) {}
       return null;
     } catch (error) {
       console.error('Cache get error for user profile:', error);
@@ -129,6 +149,11 @@ export class UserSessionCache {
    * Cache authentication token validation
    */
   async setTokenValidation(tokenHash, userData) {
+    // Return false if cache is not available
+    if (!cache || !cache.set) {
+      return false;
+    }
+    
     const key = `${this.KEYS.AUTH_TOKEN}:${tokenHash}`;
     
     try {
@@ -150,17 +175,22 @@ export class UserSessionCache {
    * Get cached token validation
    */
   async getTokenValidation(tokenHash) {
+    // Return null if cache is not available
+    if (!cache || !cache.get) {
+      return null;
+    }
+    
     const key = `${this.KEYS.AUTH_TOKEN}:${tokenHash}`;
     
     try {
       const cached = await cache.get(key);
       
       if (cached) {
-        performanceLogger.cacheHit(key, 'tokenValidation');
+        try { performanceLogger.cacheHit(key, 'tokenValidation'); } catch (e) {}
         return cached;
       }
       
-      performanceLogger.cacheMiss(key, 'tokenValidation');
+      try { performanceLogger.cacheMiss(key, 'tokenValidation'); } catch (e) {}
       return null;
     } catch (error) {
       console.error('Cache get error for token validation:', error);
@@ -172,6 +202,11 @@ export class UserSessionCache {
    * Cache user order summary
    */
   async setUserOrderSummary(userId, orderSummary) {
+    // Return false if cache is not available
+    if (!cache || !cache.set) {
+      return false;
+    }
+    
     const key = `${this.KEYS.USER_ORDERS}:${userId}`;
     
     try {
@@ -194,17 +229,22 @@ export class UserSessionCache {
    * Get cached user order summary
    */
   async getUserOrderSummary(userId) {
+    // Return null if cache is not available
+    if (!cache || !cache.get) {
+      return null;
+    }
+    
     const key = `${this.KEYS.USER_ORDERS}:${userId}`;
     
     try {
       const cached = await cache.get(key);
       
       if (cached) {
-        performanceLogger.cacheHit(key, 'userOrderSummary');
+        try { performanceLogger.cacheHit(key, 'userOrderSummary'); } catch (e) {}
         return cached;
       }
       
-      performanceLogger.cacheMiss(key, 'userOrderSummary');
+      try { performanceLogger.cacheMiss(key, 'userOrderSummary'); } catch (e) {}
       return null;
     } catch (error) {
       console.error('Cache get error for user order summary:', error);
@@ -216,6 +256,11 @@ export class UserSessionCache {
    * Track failed login attempts
    */
   async trackFailedAttempt(identifier, ipAddress) {
+    // Return 0 if cache is not available
+    if (!cache || !cache.get || !cache.set) {
+      return 0;
+    }
+    
     const key = `${this.KEYS.FAILED_ATTEMPTS}:${identifier}:${ipAddress}`;
     
     try {
@@ -235,6 +280,11 @@ export class UserSessionCache {
    * Get failed login attempts count
    */
   async getFailedAttempts(identifier, ipAddress) {
+    // Return 0 if cache is not available
+    if (!cache || !cache.get) {
+      return 0;
+    }
+    
     const key = `${this.KEYS.FAILED_ATTEMPTS}:${identifier}:${ipAddress}`;
     
     try {
@@ -250,6 +300,11 @@ export class UserSessionCache {
    * Clear failed login attempts
    */
   async clearFailedAttempts(identifier, ipAddress) {
+    // Return false if cache is not available
+    if (!cache || !cache.del) {
+      return false;
+    }
+    
     const key = `${this.KEYS.FAILED_ATTEMPTS}:${identifier}:${ipAddress}`;
     
     try {
@@ -265,6 +320,11 @@ export class UserSessionCache {
    * Track active session
    */
   async trackActiveSession(userId) {
+    // Return early if cache is not available
+    if (!cache || !cache.redis) {
+      return;
+    }
+    
     const key = this.KEYS.ACTIVE_SESSIONS;
     
     try {
@@ -283,6 +343,11 @@ export class UserSessionCache {
    * Get active sessions count
    */
   async getActiveSessionsCount() {
+    // Return 0 if cache is not available
+    if (!cache || !cache.redis) {
+      return 0;
+    }
+    
     const key = this.KEYS.ACTIVE_SESSIONS;
     
     try {
@@ -301,6 +366,11 @@ export class UserSessionCache {
    * Invalidate user cache when profile changes
    */
   async invalidateUserCache(userId) {
+    // Return false if cache is not available
+    if (!cache || !cache.del) {
+      return false;
+    }
+    
     const keysToDelete = [
       `${this.KEYS.USER_SESSION}:${userId}`,
       `${this.KEYS.USER_PROFILE}:${userId}`,
@@ -328,6 +398,11 @@ export class UserSessionCache {
    * Get cache statistics for monitoring
    */
   async getUserCacheStats() {
+    // Return null if cache is not available
+    if (!cache || !cache.redis) {
+      return null;
+    }
+    
     try {
       const redis = cache.redis;
       if (!redis) return null;

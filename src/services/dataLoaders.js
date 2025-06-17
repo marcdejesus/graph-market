@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
-import User from '../models/User.js';
-import Product from '../models/Product.js';
-import Order from '../models/Order.js';
+import { User } from '../models/User.js';
+import { Product } from '../models/Product.js';
+import { Order } from '../models/Order.js';
 import { cache } from '../config/redis.js';
 import { performanceLogger } from '../utils/logging.js';
 
@@ -29,7 +29,7 @@ export class DataLoaderFactory {
             const results = [];
             
             // Try cache first for batch if available
-            if (cache && cache.mget && cache.isConnected && cache.isConnected()) {
+            if (cache && cache.mget && cache.isConnected && typeof cache.isConnected === 'function' && cache.isConnected()) {
               const cacheKeys = userIds.map(id => `user:profile:${id}`);
               cachedUsers = await cache.mget(cacheKeys);
               
@@ -73,7 +73,7 @@ export class DataLoaderFactory {
               });
               
               // Batch cache the fetched users if cache is available
-              if (cacheOperations.length > 0 && cache && cache.mset && cache.isConnected && cache.isConnected()) {
+              if (cacheOperations.length > 0 && cache && cache.mset && cache.isConnected && typeof cache.isConnected === 'function' && cache.isConnected()) {
                 await cache.mset(cacheOperations, 3600); // 1 hour TTL
               }
             }
@@ -123,7 +123,7 @@ export class DataLoaderFactory {
             const results = [];
             
             // Try cache first for batch if available
-            if (cache && cache.mget && cache.isConnected && cache.isConnected()) {
+            if (cache && cache.mget && cache.isConnected && typeof cache.isConnected === 'function' && cache.isConnected()) {
               const cacheKeys = productIds.map(id => `product:${id}`);
               cachedProducts = await cache.mget(cacheKeys);
               
@@ -167,7 +167,7 @@ export class DataLoaderFactory {
               });
               
               // Batch cache the fetched products if cache is available
-              if (cacheOperations.length > 0 && cache && cache.mset && cache.isConnected && cache.isConnected()) {
+              if (cacheOperations.length > 0 && cache && cache.mset && cache.isConnected && typeof cache.isConnected === 'function' && cache.isConnected()) {
                 await cache.mset(cacheOperations, 1800); // 30 minutes TTL
               }
             }
