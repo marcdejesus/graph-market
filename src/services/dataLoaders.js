@@ -24,23 +24,31 @@ export class DataLoaderFactory {
           const startTime = Date.now();
           
           try {
-            // Try cache first for batch
-            const cacheKeys = userIds.map(id => `user:profile:${id}`);
-            const cachedUsers = await cache.mget(cacheKeys);
-            
+            let cachedUsers = [];
             const uncachedIds = [];
             const results = [];
             
-            // Identify which users need to be fetched from DB
-            userIds.forEach((id, index) => {
-              if (cachedUsers[index]) {
-                results[index] = cachedUsers[index];
-                performanceLogger.cacheHit(cacheKeys[index], 'userLoader');
-              } else {
+            // Try cache first for batch if available
+            if (cache && cache.mget && cache.isConnected && cache.isConnected()) {
+              const cacheKeys = userIds.map(id => `user:profile:${id}`);
+              cachedUsers = await cache.mget(cacheKeys);
+              
+              // Identify which users need to be fetched from DB
+              userIds.forEach((id, index) => {
+                if (cachedUsers[index]) {
+                  results[index] = cachedUsers[index];
+                  try { performanceLogger.cacheHit(cacheKeys[index], 'userLoader'); } catch (e) {}
+                } else {
+                  uncachedIds.push({ id, index });
+                  try { performanceLogger.cacheMiss(cacheKeys[index], 'userLoader'); } catch (e) {}
+                }
+              });
+            } else {
+              // No cache available, fetch all from DB
+              userIds.forEach((id, index) => {
                 uncachedIds.push({ id, index });
-                performanceLogger.cacheMiss(cacheKeys[index], 'userLoader');
-              }
-            });
+              });
+            }
             
             // Fetch uncached users from database
             if (uncachedIds.length > 0) {
@@ -64,19 +72,23 @@ export class DataLoaderFactory {
                 }
               });
               
-              // Batch cache the fetched users
-              if (cacheOperations.length > 0) {
+              // Batch cache the fetched users if cache is available
+              if (cacheOperations.length > 0 && cache && cache.mset && cache.isConnected && cache.isConnected()) {
                 await cache.mset(cacheOperations, 3600); // 1 hour TTL
               }
             }
             
             const duration = Date.now() - startTime;
-            performanceLogger.info('DataLoader batch users loaded', {
-              batchSize: userIds.length,
-              cacheHits: cachedUsers.filter(Boolean).length,
-              dbQueries: uncachedIds.length > 0 ? 1 : 0,
-              duration,
-            });
+            try {
+              performanceLogger.info('DataLoader batch users loaded', {
+                batchSize: userIds.length,
+                cacheHits: cachedUsers.filter(Boolean).length,
+                dbQueries: uncachedIds.length > 0 ? 1 : 0,
+                duration,
+              });
+            } catch (e) {
+              // Performance logging failed, but don't let it break the data loading
+            }
             
             return results;
           } catch (error) {
@@ -106,23 +118,31 @@ export class DataLoaderFactory {
           const startTime = Date.now();
           
           try {
-            // Try cache first for batch
-            const cacheKeys = productIds.map(id => `product:${id}`);
-            const cachedProducts = await cache.mget(cacheKeys);
-            
+            let cachedProducts = [];
             const uncachedIds = [];
             const results = [];
             
-            // Identify which products need to be fetched from DB
-            productIds.forEach((id, index) => {
-              if (cachedProducts[index]) {
-                results[index] = cachedProducts[index];
-                performanceLogger.cacheHit(cacheKeys[index], 'productLoader');
-              } else {
+            // Try cache first for batch if available
+            if (cache && cache.mget && cache.isConnected && cache.isConnected()) {
+              const cacheKeys = productIds.map(id => `product:${id}`);
+              cachedProducts = await cache.mget(cacheKeys);
+              
+              // Identify which products need to be fetched from DB
+              productIds.forEach((id, index) => {
+                if (cachedProducts[index]) {
+                  results[index] = cachedProducts[index];
+                  try { performanceLogger.cacheHit(cacheKeys[index], 'productLoader'); } catch (e) {}
+                } else {
+                  uncachedIds.push({ id, index });
+                  try { performanceLogger.cacheMiss(cacheKeys[index], 'productLoader'); } catch (e) {}
+                }
+              });
+            } else {
+              // No cache available, fetch all from DB
+              productIds.forEach((id, index) => {
                 uncachedIds.push({ id, index });
-                performanceLogger.cacheMiss(cacheKeys[index], 'productLoader');
-              }
-            });
+              });
+            }
             
             // Fetch uncached products from database
             if (uncachedIds.length > 0) {
@@ -146,19 +166,23 @@ export class DataLoaderFactory {
                 }
               });
               
-              // Batch cache the fetched products
-              if (cacheOperations.length > 0) {
+              // Batch cache the fetched products if cache is available
+              if (cacheOperations.length > 0 && cache && cache.mset && cache.isConnected && cache.isConnected()) {
                 await cache.mset(cacheOperations, 1800); // 30 minutes TTL
               }
             }
             
             const duration = Date.now() - startTime;
-            performanceLogger.info('DataLoader batch products loaded', {
-              batchSize: productIds.length,
-              cacheHits: cachedProducts.filter(Boolean).length,
-              dbQueries: uncachedIds.length > 0 ? 1 : 0,
-              duration,
-            });
+            try {
+              performanceLogger.info('DataLoader batch products loaded', {
+                batchSize: productIds.length,
+                cacheHits: cachedProducts.filter(Boolean).length,
+                dbQueries: uncachedIds.length > 0 ? 1 : 0,
+                duration,
+              });
+            } catch (e) {
+              // Performance logging failed, but don't let it break the data loading
+            }
             
             return results;
           } catch (error) {
@@ -211,12 +235,16 @@ export class DataLoaderFactory {
             const results = userIds.map(userId => ordersByUser.get(userId.toString()) || []);
             
             const duration = Date.now() - startTime;
-            performanceLogger.info('DataLoader batch user orders loaded', {
-              batchSize: userIds.length,
-              totalOrders: orders.length,
-              dbQueries: 1,
-              duration,
-            });
+            try {
+              performanceLogger.info('DataLoader batch user orders loaded', {
+                batchSize: userIds.length,
+                totalOrders: orders.length,
+                dbQueries: 1,
+                duration,
+              });
+            } catch (e) {
+              // Performance logging failed, but don't let it break the data loading
+            }
             
             return results;
           } catch (error) {
@@ -256,11 +284,15 @@ export class DataLoaderFactory {
             const results = productIds.map(id => productMap.get(id.toString()) || null);
             
             const duration = Date.now() - startTime;
-            performanceLogger.info('DataLoader batch product creators loaded', {
-              batchSize: productIds.length,
-              dbQueries: 1,
-              duration,
-            });
+            try {
+              performanceLogger.info('DataLoader batch product creators loaded', {
+                batchSize: productIds.length,
+                dbQueries: 1,
+                duration,
+              });
+            } catch (e) {
+              // Performance logging failed, but don't let it break the data loading
+            }
             
             return results;
           } catch (error) {
@@ -301,11 +333,15 @@ export class DataLoaderFactory {
             const results = orderIds.map(id => orderMap.get(id.toString()) || []);
             
             const duration = Date.now() - startTime;
-            performanceLogger.info('DataLoader batch order items loaded', {
-              batchSize: orderIds.length,
-              dbQueries: 1,
-              duration,
-            });
+            try {
+              performanceLogger.info('DataLoader batch order items loaded', {
+                batchSize: orderIds.length,
+                dbQueries: 1,
+                duration,
+              });
+            } catch (e) {
+              // Performance logging failed, but don't let it break the data loading
+            }
             
             return results;
           } catch (error) {

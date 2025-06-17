@@ -17,7 +17,7 @@ describe('UserSessionCache Service', () => {
   
   beforeEach(async () => {
     // Clear cache before each test
-    if (cache.isConnected()) {
+    if (cache && cache.isConnected && cache.isConnected()) {
       await cache.flush();
     }
   });
