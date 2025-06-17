@@ -165,12 +165,21 @@ export const setupComplete = true;
 
 // Setup before all tests
 export const setupTestDatabase = async () => {
-  // Create in-memory MongoDB instance
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
+  try {
+    // Create in-memory MongoDB instance with minimal configuration
+    mongoServer = await MongoMemoryServer.create({
+      binary: {
+        version: 'latest'
+      }
+    });
+    const mongoUri = mongoServer.getUri();
 
-  // Connect to the in-memory database
-  await mongoose.connect(mongoUri);
+    // Connect to the in-memory database
+    await mongoose.connect(mongoUri);
+  } catch (error) {
+    console.error('MongoDB Memory Server setup failed:', error);
+    throw error;
+  }
 };
 
 // Cleanup after all tests

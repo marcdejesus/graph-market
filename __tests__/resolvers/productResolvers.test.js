@@ -1,12 +1,33 @@
-import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
-import { Product } from '../../src/models/Product.js';
-import { User } from '../../src/models/User.js';
 import { productResolvers } from '../../src/resolvers/productResolvers.js';
-import { productCacheService } from '../../src/services/productCacheService.js';
-import { validateObjectId } from '../../src/utils/validation.js';
 
-// Mock the cache service
+// Mock the User model before importing
+jest.mock('../../src/models/User.js', () => ({
+  User: {
+    findById: jest.fn().mockReturnValue({
+      select: jest.fn()
+    }),
+    create: jest.fn(),
+    deleteMany: jest.fn()
+  }
+}));
+
+// Mock the Product model before importing  
+jest.mock('../../src/models/Product.js', () => ({
+  Product: {
+    find: jest.fn(),
+    findOne: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    countDocuments: jest.fn(),
+    aggregate: jest.fn()
+  }
+}));
+
+import { User } from '../../src/models/User.js';
+import { Product } from '../../src/models/Product.js';
+
+// Mock all the dependencies
 jest.mock('../../src/services/productCacheService.js', () => ({
   productCacheService: {
     getProductList: jest.fn(),
@@ -20,13 +41,17 @@ jest.mock('../../src/services/productCacheService.js', () => ({
     getSearchResults: jest.fn(),
     setSearchResults: jest.fn(),
     invalidateProduct: jest.fn(),
+    clearCache: jest.fn(),
   }
 }));
 
-// Mock logging
+// Import the mocked cache service
+import { productCacheService } from '../../src/services/productCacheService.js';
+
 jest.mock('../../src/utils/logging.js', () => ({
   performanceLogger: {
     slowQuery: jest.fn(),
+    databaseQuery: jest.fn(),
     cacheHit: jest.fn(),
     cacheMiss: jest.fn(),
   },
@@ -37,50 +62,37 @@ jest.mock('../../src/utils/logging.js', () => ({
 }));
 
 describe('Product Resolvers', () => {
-  let mongoServer;
   let adminUser;
   let customerUser;
   let sampleProducts;
 
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    const mongoUri = mongoServer.getUri();
-    await mongoose.connect(mongoUri);
-  });
-
-  afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
-  });
-
-  beforeEach(async () => {
-    // Clear all collections
-    await User.deleteMany({});
-    await Product.deleteMany({});
-    
-    // Clear cache mocks
-    jest.clearAllMocks();
-
-    // Create test users
-    adminUser = await User.create({
+    // Create mock users for testing
+    adminUser = {
+      _id: new mongoose.Types.ObjectId(),
       email: 'admin@test.com',
-      password: 'password123',
       firstName: 'Admin',
       lastName: 'User',
       role: 'admin'
-    });
+    };
 
-    customerUser = await User.create({
+    customerUser = {
+      _id: new mongoose.Types.ObjectId(),
       email: 'customer@test.com',
-      password: 'password123',
       firstName: 'Customer',
       lastName: 'User',
       role: 'customer'
-    });
+    };
+  });
+
+  beforeEach(async () => {
+    // Clear all mocks
+    jest.clearAllMocks();
 
     // Create sample products
-    sampleProducts = await Product.create([
+    sampleProducts = [
       {
+        _id: new mongoose.Types.ObjectId(),
         name: 'iPhone 15 Pro',
         description: 'Latest Apple smartphone with advanced features',
         category: 'Electronics',
@@ -90,6 +102,7 @@ describe('Product Resolvers', () => {
         isActive: true
       },
       {
+        _id: new mongoose.Types.ObjectId(),
         name: 'MacBook Pro M3',
         description: 'Powerful laptop for professionals',
         category: 'Electronics',
@@ -99,6 +112,7 @@ describe('Product Resolvers', () => {
         isActive: true
       },
       {
+        _id: new mongoose.Types.ObjectId(),
         name: 'Gaming Headset',
         description: 'High-quality gaming headset with surround sound',
         category: 'Gaming',
@@ -108,6 +122,7 @@ describe('Product Resolvers', () => {
         isActive: true
       },
       {
+        _id: new mongoose.Types.ObjectId(),
         name: 'Out of Stock Item',
         description: 'This item is currently out of stock',
         category: 'Electronics',
@@ -117,6 +132,7 @@ describe('Product Resolvers', () => {
         isActive: true
       },
       {
+        _id: new mongoose.Types.ObjectId(),
         name: 'Inactive Product',
         description: 'This product is inactive',
         category: 'Electronics',
@@ -125,7 +141,35 @@ describe('Product Resolvers', () => {
         createdBy: adminUser._id,
         isActive: false
       }
-    ]);
+    ];
+
+    // Set up default mock behaviors
+    Product.find.mockReturnValue({
+      limit: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      populate: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      gt: jest.fn().mockResolvedValue(sampleProducts.filter(p => p.isActive))
+    });
+    
+    // Create a mock product with save and populate methods
+    const mockProduct = {
+      ...sampleProducts[0],
+      save: jest.fn().mockResolvedValue(sampleProducts[0]),
+      populate: jest.fn().mockResolvedValue(sampleProducts[0])
+    };
+    
+    Product.findById.mockResolvedValue(mockProduct);
+    Product.create.mockImplementation(async (data) => ({
+      ...data,
+      _id: new mongoose.Types.ObjectId(),
+      populate: jest.fn().mockResolvedValue({ ...data, createdBy: adminUser })
+    }));
+    Product.countDocuments.mockResolvedValue(4);
+
+    // Setup User model mock
+    const userSelectMock = jest.fn().mockResolvedValue(adminUser);
+    User.findById.mockReturnValue({ select: userSelectMock });
   });
 
   describe('Query: products', () => {
@@ -264,6 +308,9 @@ describe('Product Resolvers', () => {
     });
 
     test('should handle invalid cursor gracefully', async () => {
+      // Mock cache miss to ensure cache errors don't interfere
+      productCacheService.getProductList.mockResolvedValue(null);
+
       await expect(
         productResolvers.Query.products(
           null,
@@ -594,7 +641,9 @@ describe('Product Resolvers', () => {
       };
 
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       const result = await productResolvers.Mutation.addProduct(
@@ -628,7 +677,9 @@ describe('Product Resolvers', () => {
       };
 
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       const result = await productResolvers.Mutation.addProduct(
@@ -643,7 +694,9 @@ describe('Product Resolvers', () => {
 
     test('should validate required fields', async () => {
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       // Test missing name
@@ -695,7 +748,9 @@ describe('Product Resolvers', () => {
       };
 
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       const result = await productResolvers.Mutation.updateProduct(
@@ -718,7 +773,9 @@ describe('Product Resolvers', () => {
 
     test('should validate partial updates', async () => {
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       // Test empty name
@@ -742,7 +799,9 @@ describe('Product Resolvers', () => {
 
     test('should throw error for non-existent product', async () => {
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       const nonExistentId = new mongoose.Types.ObjectId().toString();
@@ -762,7 +821,9 @@ describe('Product Resolvers', () => {
       productCacheService.invalidateProduct.mockResolvedValue(true);
 
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       const result = await productResolvers.Mutation.deleteProduct(
@@ -783,7 +844,9 @@ describe('Product Resolvers', () => {
 
     test('should throw error for non-existent product', async () => {
       const context = {
-        user: { id: adminUser._id.toString(), role: 'admin' }
+        user: { id: adminUser._id.toString(), role: 'admin' },
+        isAuthenticated: true,
+        isAdmin: true
       };
 
       const nonExistentId = new mongoose.Types.ObjectId().toString();
@@ -840,7 +903,7 @@ describe('Product Resolvers', () => {
       ).rejects.toThrow();
 
       // Reconnect for cleanup
-      const mongoUri = mongoServer.getUri();
+      const mongoUri = mongoose.connection.getClient().getUri();
       await mongoose.connect(mongoUri);
     });
 

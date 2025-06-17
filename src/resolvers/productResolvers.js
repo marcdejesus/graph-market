@@ -146,9 +146,9 @@ export const productResolvers = {
         }).populate('createdBy', 'id firstName lastName email');
         
         if (!product) {
-          throw new GraphQLError('Product not found', {
-            extensions: { code: 'PRODUCT_NOT_FOUND' }
-          });
+          const duration = Date.now() - startTime;
+          graphqlLogger.operationComplete('product', duration, true);
+          return null;
         }
 
         // Cache the product
@@ -618,12 +618,12 @@ export const productResolvers = {
   Product: {
     // Resolve the createdBy user field
     createdBy: async (product) => {
-      if (product.createdBy && typeof product.createdBy === 'object') {
-        // Already populated
+      if (product.createdBy && typeof product.createdBy === 'object' && product.createdBy.email) {
+        // Already populated with user data
         return product.createdBy;
       }
       
-      // Need to populate
+      // Need to populate from ObjectId
       if (product.createdBy) {
         return await User.findById(product.createdBy).select('id firstName lastName email');
       }

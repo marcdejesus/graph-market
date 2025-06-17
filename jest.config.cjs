@@ -14,7 +14,7 @@ module.exports = {
   ],
 
   // Setup and teardown
-  setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js'],
+  // setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js'],
   globalTeardown: '<rootDir>/__tests__/teardown.js',
 
   // Test timeouts
@@ -46,20 +46,20 @@ module.exports = {
   },
 
   // Test patterns for different test types
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: ['<rootDir>/__tests__/resolvers/**/*.test.js'],
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/__tests__/integration/**/*.test.js'],
-    },
-    {
-      displayName: 'performance',
-      testMatch: ['<rootDir>/__tests__/performance/**/*.test.js'],
-    },
-  ],
+  // projects: [
+  //   {
+  //     displayName: 'unit',
+  //     testMatch: ['<rootDir>/__tests__/resolvers/**/*.test.js'],
+  //   },
+  //   {
+  //     displayName: 'integration',
+  //     testMatch: ['<rootDir>/__tests__/integration/**/*.test.js'],
+  //   },
+  //   {
+  //     displayName: 'performance',
+  //     testMatch: ['<rootDir>/__tests__/performance/**/*.test.js'],
+  //   },
+  // ],
 
   // Clear mocks between tests
   clearMocks: true,

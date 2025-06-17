@@ -116,7 +116,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       };
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${adminToken}` }
         }
@@ -161,7 +161,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       };
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${customerToken}` }
         }
@@ -196,7 +196,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       };
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { query: CREATE_PRODUCT, variables },
@@ -218,7 +218,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${adminToken}` }
         }
@@ -323,7 +323,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { query: GET_PRODUCTS, variables: { first: 10 } },
@@ -354,7 +354,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { 
@@ -385,7 +385,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { 
@@ -417,7 +417,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       // Test in-stock filter
       let result = await apolloServer.executeOperation(
@@ -467,7 +467,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       // Get first page
       const firstPage = await apolloServer.executeOperation(
@@ -520,7 +520,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { query: GET_PRODUCT, variables: { id: productId } },
@@ -550,7 +550,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { query: GET_PRODUCT, variables: { id: nonExistentId } },
@@ -610,7 +610,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { query: GET_POPULAR, variables: { limit: 5 } },
@@ -637,7 +637,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       const result = await apolloServer.executeOperation(
         { query: GET_CATEGORIES },
@@ -686,7 +686,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       // Search by name
       let result = await apolloServer.executeOperation(
@@ -776,7 +776,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       };
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${adminToken}` }
         }
@@ -812,7 +812,7 @@ describe('Product CRUD Integration Tests', () => {
         input: { name: 'Unauthorized Update' }
       };
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${customerToken}` }
         }
@@ -840,7 +840,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${adminToken}` }
         }
@@ -891,7 +891,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${adminToken}` }
         }
@@ -923,7 +923,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const publicContext = createContext({ req: { headers: {} } });
+      const publicContext = await createContext({ req: { headers: {} } });
       const publicResult = await apolloServer.executeOperation(
         { query: GET_PRODUCTS },
         { contextValue: publicContext }
@@ -940,7 +940,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({
+      const context = await createContext({
         req: {
           headers: { authorization: `Bearer ${customerToken}` }
         }
@@ -994,7 +994,7 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
+      const context = await createContext({ req: { headers: {} } });
 
       // First request (cache miss)
       const start1 = Date.now();
@@ -1051,8 +1051,8 @@ describe('Product CRUD Integration Tests', () => {
         }
       `;
 
-      const context = createContext({ req: { headers: {} } });
-      const adminContext = createContext({
+      const context = await createContext({ req: { headers: {} } });
+      const adminContext = await createContext({
         req: {
           headers: { authorization: `Bearer ${adminToken}` }
         }
