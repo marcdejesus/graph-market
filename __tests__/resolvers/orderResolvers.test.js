@@ -40,8 +40,9 @@ describe('Order Resolvers', () => {
   beforeEach(async () => {
     await clearTestCollections();
 
+    const timestamp = Date.now();
     mockUser = await User.create({
-      email: 'customer@test.com',
+      email: `customer-${timestamp}@test.com`,
       password: 'password123',
       firstName: 'John',
       lastName: 'Doe',
@@ -49,7 +50,7 @@ describe('Order Resolvers', () => {
     });
 
     mockAdmin = await User.create({
-      email: 'admin@test.com',
+      email: `admin-${timestamp}@test.com`,
       password: 'password123',
       firstName: 'Admin',
       lastName: 'User',
@@ -93,7 +94,12 @@ describe('Order Resolvers', () => {
 
     it('should throw error when not authenticated', async () => {
       const context = createContext(null);
-      await expect(orderResolvers.Query.myOrders({}, {}, context)).rejects.toThrow('Authentication required');
+      try {
+        await orderResolvers.Query.myOrders({}, {}, context);
+        fail('Expected function to throw');
+      } catch (error) {
+        expect(error.message).toContain('Authentication required');
+      }
     });
 
     it('should return empty array when user has no orders', async () => {
@@ -106,26 +112,25 @@ describe('Order Resolvers', () => {
 
   describe('Query: order', () => {
     it('should return order for owner', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
       const result = await orderResolvers.Query.order({}, { id: mockOrder._id }, context);
       expect(result._id.toString()).toBe(mockOrder._id.toString());
     });
 
     it('should return order for admin', async () => {
-      const context = { token: adminToken };
+      const context = createContext(mockAdmin);
       const result = await orderResolvers.Query.order({}, { id: mockOrder._id }, context);
       expect(result._id.toString()).toBe(mockOrder._id.toString());
     });
 
     it('should throw error when user tries to access another user order', async () => {
-      const otherUser = await User.create({ email: 'other@test.com', password: 'password123', role: 'customer' });
-      const otherToken = generateToken(otherUser._id, otherUser.role);
-      const context = { token: otherToken };
+      const otherUser = await User.create({ email: `other-${Date.now()}@test.com`, password: 'password123', role: 'customer' });
+      const context = createContext(otherUser);
       await expect(orderResolvers.Query.order({}, { id: mockOrder._id }, context)).rejects.toThrow('Not authorized to view this order');
     });
 
     it('should throw error for non-existent order', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
       const fakeId = '507f1f77bcf86cd799439011';
       await expect(orderResolvers.Query.order({}, { id: fakeId }, context)).rejects.toThrow('Order not found');
     });
@@ -133,7 +138,7 @@ describe('Order Resolvers', () => {
 
   describe('Query: allOrders', () => {
     it('should return all orders for admin', async () => {
-        const context = { token: adminToken };
+        const context = createContext(mockAdmin);
         const result = await orderResolvers.Query.allOrders({}, {}, context);
         expect(result).toHaveLength(1);
     });
@@ -141,7 +146,7 @@ describe('Order Resolvers', () => {
 
   describe('Query: orderStats', () => {
     it('should return order analytics for admin', async () => {
-      const context = { token: adminToken };
+      const context = createContext(mockAdmin);
       const result = await orderResolvers.Query.orderStats({}, {}, context);
 
       expect(result).toHaveProperty('totalOrders');
@@ -153,10 +158,14 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
-      await expect(orderResolvers.Query.orderStats({}, {}, context))
-        .rejects.toThrow('Admin access required');
+      try {
+        await orderResolvers.Query.orderStats({}, {}, context);
+        fail('Expected function to throw');
+      } catch (error) {
+        expect(error.message).toContain('Admin access required');
+      }
     });
   });
 
@@ -178,7 +187,7 @@ describe('Order Resolvers', () => {
 
       expect(result.totalAmount).toBe(199.98);
       expect(result.items).toHaveLength(1);
-      expect(result.status).toBe('PENDING');
+      expect(result.status).toBe('pending');
 
       // Check stock was deducted
       const updatedProduct = await Product.findById(mockProduct._id);
@@ -230,10 +239,14 @@ describe('Order Resolvers', () => {
       const input = {
         items: [{ productId: 'some-id', quantity: 1 }]
       };
-      const context = {};
+      const context = createContext(null);
 
-      await expect(orderResolvers.Mutation.placeOrder({}, { input }, context))
-        .rejects.toThrow('Authentication required');
+      try {
+        await orderResolvers.Mutation.placeOrder({}, { input }, context);
+        fail('Expected function to throw');
+      } catch (error) {
+        expect(error.message).toContain('Authentication required');
+      }
     });
   });
 
@@ -246,7 +259,7 @@ describe('Order Resolvers', () => {
         context
       );
 
-      expect(result.status).toBe('CANCELLED');
+      expect(result.status).toBe('cancelled');
 
       // Check stock was restored
       const updatedProduct = await Product.findById(mockProduct._id);
@@ -261,12 +274,12 @@ describe('Order Resolvers', () => {
         context
       );
 
-      expect(result.status).toBe('CANCELLED');
+      expect(result.status).toBe('cancelled');
     });
 
     it('should throw error when user tries to cancel another user order', async () => {
       const otherUser = await User.create({
-        email: 'other@test.com',
+        email: `other2-${Date.now()}@test.com`,
         password: 'password123',
         role: 'customer'
       });
@@ -293,7 +306,7 @@ describe('Order Resolvers', () => {
 
     it('should throw error for already delivered order', async () => {
       await Order.findByIdAndUpdate(mockOrder._id, { status: 'delivered' });
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       await expect(orderResolvers.Mutation.cancelOrder(
         {}, 
@@ -308,20 +321,20 @@ describe('Order Resolvers', () => {
       const context = createContext(mockAdmin);
       const result = await orderResolvers.Mutation.updateOrderStatus(
         {}, 
-        { orderId: mockOrder._id, status: 'CONFIRMED' }, 
+        { orderId: mockOrder._id, status: 'confirmed' }, 
         context
       );
 
-      expect(result.status).toBe('CONFIRMED');
+      expect(result.status).toBe('confirmed');
     });
 
     it('should throw error for invalid status transition', async () => {
       await Order.findByIdAndUpdate(mockOrder._id, { status: 'delivered' });
-      const context = { token: adminToken };
+      const context = createContext(mockAdmin);
 
       await expect(orderResolvers.Mutation.updateOrderStatus(
         {}, 
-        { orderId: mockOrder._id, status: 'PENDING' }, 
+        { orderId: mockOrder._id, status: 'pending' }, 
         context
       )).rejects.toThrow('Invalid status transition');
     });
@@ -329,20 +342,25 @@ describe('Order Resolvers', () => {
     it('should throw error for non-admin users', async () => {
       const context = createContext(mockUser);
 
-      await expect(orderResolvers.Mutation.updateOrderStatus(
-        {}, 
-        { orderId: 'some-id', status: 'CONFIRMED' }, 
-        context
-      )).rejects.toThrow('Admin access required');
+      try {
+        await orderResolvers.Mutation.updateOrderStatus(
+          {}, 
+          { orderId: 'some-id', status: 'confirmed' }, 
+          context
+        );
+        fail('Expected function to throw');
+      } catch (error) {
+        expect(error.message).toContain('Admin access required');
+      }
     });
 
     it('should throw error for non-existent order', async () => {
-      const context = { token: adminToken };
+      const context = createContext(mockAdmin);
       const fakeId = '507f1f77bcf86cd799439011';
 
       await expect(orderResolvers.Mutation.updateOrderStatus(
         {}, 
-        { orderId: fakeId, status: 'CONFIRMED' }, 
+        { orderId: fakeId, status: 'confirmed' }, 
         context
       )).rejects.toThrow('Order not found');
     });
@@ -354,7 +372,7 @@ describe('Order Resolvers', () => {
         const order = await Order.findById(mockOrder._id).populate('user');
         const result = await orderResolvers.Order.user(order);
 
-        expect(result.email).toBe('customer@test.com');
+        expect(result.email).toBe(mockUser.email);
         expect(result.firstName).toBe('John');
       });
 
@@ -362,7 +380,7 @@ describe('Order Resolvers', () => {
         const order = await Order.findById(mockOrder._id);
         const result = await orderResolvers.Order.user(order);
 
-        expect(result.email).toBe('customer@test.com');
+        expect(result.email).toBe(mockUser.email);
       });
     });
 
