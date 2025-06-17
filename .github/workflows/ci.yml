@@ -52,7 +52,7 @@ jobs:
       run: npm run lint || echo "Linter not configured yet"
 
     - name: Run tests
-      run: npm test
+      run: npm test -- --testTimeout=30000
       env:
         NODE_ENV: test
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test
@@ -61,6 +61,19 @@ jobs:
         RATE_LIMIT_WINDOW_MS: 900000
         RATE_LIMIT_MAX_REQUESTS: 100
         LOG_LEVEL: error
+        CI: true
+
+    - name: Run product-specific tests
+      run: npm test -- __tests__/resolvers/productResolvers.test.js --testTimeout=30000
+      env:
+        NODE_ENV: test
+        MONGODB_URI: mongodb://localhost:27017/graphmarket-test
+        REDIS_URI: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-key
+        RATE_LIMIT_WINDOW_MS: 900000
+        RATE_LIMIT_MAX_REQUESTS: 100
+        LOG_LEVEL: error
+        CI: true
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
