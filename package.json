@@ -11,6 +11,8 @@
     "test:watch": "jest --config jest.config.cjs --watch",
     "test:unit": "jest --config jest.config.cjs --selectProjects unit",
     "test:integration": "jest --config jest.config.cjs --selectProjects integration",
+    "test:e2e": "jest --config jest.config.cjs --testPathPattern=\"__tests__/e2e\"",
+    "test:load": "jest --config jest.config.cjs --testPathPattern=\"__tests__/load\" --testTimeout=120000",
     "test:performance": "jest --config jest.config.cjs --selectProjects performance",
     "test:coverage": "jest --config jest.config.cjs --coverage",
     "test:all": "jest --config jest.config.cjs --selectProjects unit integration performance",
