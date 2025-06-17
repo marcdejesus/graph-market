@@ -34,7 +34,7 @@ module.exports = {
     '!src/**/*.test.js',
     '!src/**/__tests__/**',
   ],
-  coverageThreshold: {
+  coverageThreshold: process.env.CI && process.env.JEST_PARTIAL_TEST ? {} : {
     global: {
       branches: 45,
       functions: 50,
