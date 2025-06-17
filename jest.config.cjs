@@ -1,4 +1,4 @@
-export default {
+module.exports = {
   // Test environment
   testEnvironment: 'node',
 
@@ -40,8 +40,8 @@ export default {
     },
   },
 
-  // Module path mapping
-  moduleNameMapping: {
+  // Module path mapping (fixed: should be moduleNameMapper)
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
 
@@ -74,7 +74,6 @@ export default {
 
   // Detect open handles
   detectOpenHandles: true,
-  detectLeaks: true,
 
   // Maximum worker processes
   maxWorkers: '50%',
