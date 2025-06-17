@@ -63,18 +63,6 @@ jobs:
         LOG_LEVEL: error
         CI: true
 
-    - name: Run product-specific tests
-      run: npm test -- __tests__/resolvers/productResolvers.test.js --testTimeout=30000 --maxWorkers=1
-      env:
-        NODE_ENV: test
-        MONGODB_URI: mongodb://localhost:27017/graphmarket-test
-        REDIS_URI: redis://localhost:6379
-        JWT_SECRET: test-jwt-secret-key
-        RATE_LIMIT_WINDOW_MS: 900000
-        RATE_LIMIT_MAX_REQUESTS: 100
-        LOG_LEVEL: error
-        CI: true
-
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
       if: matrix.node-version == 20
