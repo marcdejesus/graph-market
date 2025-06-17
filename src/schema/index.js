@@ -156,6 +156,14 @@ export const typeDefs = gql`
     endCursor: String
   }
 
+  # Product Category type
+  type ProductCategory {
+    category: String!
+    productCount: Int!
+    averagePrice: Float!
+    totalStock: Int!
+  }
+
   # Query type
   type Query {
     # Public queries
@@ -166,6 +174,16 @@ export const typeDefs = gql`
     ): ProductConnection!
     
     product(id: ID!): Product
+    
+    # Advanced product queries
+    popularProducts(limit: Int = 10): [Product!]!
+    productCategories: [ProductCategory!]!
+    searchProducts(
+      query: String!
+      filter: ProductFilterInput
+      first: Int = 20
+      after: String
+    ): ProductConnection!
     
     # Authenticated queries
     me: User

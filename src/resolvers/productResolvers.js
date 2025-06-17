@@ -4,6 +4,7 @@ import { User } from '../models/User.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { validateObjectId } from '../utils/validation.js';
 import { performanceLogger, graphqlLogger } from '../utils/logging.js';
+import { productCacheService } from '../services/productCacheService.js';
 
 export const productResolvers = {
   Query: {
@@ -16,6 +17,14 @@ export const productResolvers = {
         
         // Validate and limit pagination
         const limit = Math.min(first, 100); // Max 100 products per request
+
+        // Check cache first
+        const cacheData = await productCacheService.getProductList(filter, { first, after });
+        if (cacheData) {
+          const duration = Date.now() - startTime;
+          graphqlLogger.operationComplete('products', duration, true);
+          return cacheData;
+        }
         
         // Build query filters
         const queryFilter = { isActive: true }; // Only show active products
@@ -87,13 +96,18 @@ export const productResolvers = {
           performanceLogger.slowQuery('products', duration, { filter, totalCount });
         }
         
-        graphqlLogger.operationComplete('products', duration, true);
-        
-        return {
+        const result = {
           edges,
           pageInfo,
           totalCount,
         };
+
+        // Cache the result
+        await productCacheService.setProductList(filter, { first, after }, result);
+
+        graphqlLogger.operationComplete('products', duration, true);
+        
+        return result;
         
       } catch (error) {
         const duration = Date.now() - startTime;
@@ -117,6 +131,14 @@ export const productResolvers = {
         graphqlLogger.operationStart('product', { id }, context);
         
         validateObjectId(id);
+
+        // Check cache first
+        const cachedProduct = await productCacheService.getProduct(id);
+        if (cachedProduct) {
+          const duration = Date.now() - startTime;
+          graphqlLogger.operationComplete('product', duration, true);
+          return cachedProduct;
+        }
         
         const product = await Product.findOne({ 
           _id: id, 
@@ -128,6 +150,9 @@ export const productResolvers = {
             extensions: { code: 'PRODUCT_NOT_FOUND' }
           });
         }
+
+        // Cache the product
+        await productCacheService.setProduct(id, product);
         
         const duration = Date.now() - startTime;
         graphqlLogger.operationComplete('product', duration, true);
@@ -144,6 +169,229 @@ export const productResolvers = {
         
         throw new GraphQLError('Failed to fetch product', {
           extensions: { code: 'FETCH_PRODUCT_ERROR' }
+        });
+      }
+    },
+
+    // Public query - get popular products (most frequently queried/ordered)
+    popularProducts: async (parent, { limit = 10 }, context) => {
+      const startTime = Date.now();
+      
+      try {
+        graphqlLogger.operationStart('popularProducts', { limit }, context);
+        
+        const limitValue = Math.min(limit, 50); // Max 50 products
+
+        // Check cache first
+        const cachedPopular = await productCacheService.getPopularProducts(limitValue);
+        if (cachedPopular) {
+          const duration = Date.now() - startTime;
+          graphqlLogger.operationComplete('popularProducts', duration, true);
+          return cachedPopular;
+        }
+
+        // For now, return products sorted by creation date
+        // In a real app, you'd track view/order counts and sort by popularity
+        const products = await Product.find({ isActive: true })
+          .sort({ createdAt: -1 })
+          .limit(limitValue)
+          .populate('createdBy', 'id firstName lastName email');
+
+        // Cache the result
+        await productCacheService.setPopularProducts(limitValue, products);
+
+        const duration = Date.now() - startTime;
+        graphqlLogger.operationComplete('popularProducts', duration, true);
+        
+        return products;
+        
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        graphqlLogger.operationComplete('popularProducts', duration, false, error.message);
+        
+        throw new GraphQLError('Failed to fetch popular products', {
+          extensions: { code: 'FETCH_POPULAR_PRODUCTS_ERROR' }
+        });
+      }
+    },
+
+    // Public query - get all product categories with counts
+    productCategories: async (parent, args, context) => {
+      const startTime = Date.now();
+      
+      try {
+        graphqlLogger.operationStart('productCategories', {}, context);
+
+        // Check cache first
+        const cachedCategories = await productCacheService.getCategories();
+        if (cachedCategories) {
+          const duration = Date.now() - startTime;
+          graphqlLogger.operationComplete('productCategories', duration, true);
+          return cachedCategories;
+        }
+
+        // Aggregate categories with product counts
+        const categories = await Product.aggregate([
+          { $match: { isActive: true } },
+          { 
+            $group: {
+              _id: '$category',
+              count: { $sum: 1 },
+              averagePrice: { $avg: '$price' },
+              totalStock: { $sum: '$stock' }
+            }
+          },
+          { 
+            $project: {
+              category: '$_id',
+              productCount: '$count',
+              averagePrice: { $round: ['$averagePrice', 2] },
+              totalStock: '$totalStock'
+            }
+          },
+          { $sort: { category: 1 } }
+        ]);
+
+        // Cache the result
+        await productCacheService.setCategories(categories);
+
+        const duration = Date.now() - startTime;
+        graphqlLogger.operationComplete('productCategories', duration, true);
+        
+        return categories;
+        
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        graphqlLogger.operationComplete('productCategories', duration, false, error.message);
+        
+        throw new GraphQLError('Failed to fetch product categories', {
+          extensions: { code: 'FETCH_CATEGORIES_ERROR' }
+        });
+      }
+    },
+
+    // Public query - search products with enhanced text search
+    searchProducts: async (parent, { query, filter = {}, first = 20, after }, context) => {
+      const startTime = Date.now();
+      
+      try {
+        graphqlLogger.operationStart('searchProducts', { query, filter, first, after }, context);
+
+        if (!query || query.trim().length === 0) {
+          throw new GraphQLError('Search query is required', {
+            extensions: { code: 'INVALID_INPUT' }
+          });
+        }
+
+        const searchTerm = query.trim();
+        const limit = Math.min(first, 100);
+
+        // Check cache first
+        const cacheData = await productCacheService.getSearchResults(searchTerm, filter);
+        if (cacheData) {
+          const duration = Date.now() - startTime;
+          graphqlLogger.operationComplete('searchProducts', duration, true);
+          return cacheData;
+        }
+
+        // Build search query - use either text search or regex, not both
+        const searchQuery = {
+          isActive: true,
+          $or: [
+            { name: { $regex: searchTerm, $options: 'i' } }, // Case-insensitive name search
+            { description: { $regex: searchTerm, $options: 'i' } }, // Case-insensitive description search
+            { category: { $regex: searchTerm, $options: 'i' } } // Case-insensitive category search
+          ]
+        };
+
+        // Apply additional filters
+        if (filter.category) {
+          searchQuery.category = { $regex: filter.category, $options: 'i' };
+        }
+
+        if (filter.minPrice !== undefined) {
+          searchQuery.price = { ...searchQuery.price, $gte: filter.minPrice };
+        }
+
+        if (filter.maxPrice !== undefined) {
+          searchQuery.price = { ...searchQuery.price, $lte: filter.maxPrice };
+        }
+
+        if (filter.inStock !== undefined) {
+          if (filter.inStock) {
+            searchQuery.stock = { $gt: 0 };
+          } else {
+            searchQuery.stock = { $eq: 0 };
+          }
+        }
+
+        let mongoQuery = Product.find(searchQuery);
+
+        // Handle cursor pagination
+        if (after) {
+          try {
+            const cursor = Buffer.from(after, 'base64').toString();
+            mongoQuery = mongoQuery.where('_id').gt(cursor);
+          } catch (error) {
+            throw new GraphQLError('Invalid cursor format', {
+              extensions: { code: 'INVALID_CURSOR' }
+            });
+          }
+        }
+
+        // Execute search with text score for relevance
+        const products = await mongoQuery
+          .limit(limit + 1)
+          .sort({ createdAt: -1, _id: 1 }) // Remove text score sorting if no text search is used
+          .populate('createdBy', 'id firstName lastName email');
+
+        // Get total count
+        const totalCount = await Product.countDocuments(searchQuery);
+
+        // Determine pagination info
+        const hasNextPage = products.length > limit;
+        const edges = products.slice(0, limit).map(product => ({
+          node: product,
+          cursor: Buffer.from(product._id.toString()).toString('base64')
+        }));
+
+        const pageInfo = {
+          hasNextPage,
+          hasPreviousPage: !!after,
+          startCursor: edges.length > 0 ? edges[0].cursor : null,
+          endCursor: edges.length > 0 ? edges[edges.length - 1].cursor : null,
+        };
+
+        const result = {
+          edges,
+          pageInfo,
+          totalCount,
+        };
+
+        // Cache the search results
+        await productCacheService.setSearchResults(searchTerm, filter, result);
+
+        const duration = Date.now() - startTime;
+        graphqlLogger.operationComplete('searchProducts', duration, true);
+        
+        return result;
+        
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error('Search products error details:', {
+          message: error.message,
+          stack: error.stack,
+          query,
+          filter
+        });
+        graphqlLogger.operationComplete('searchProducts', duration, false, error.message);
+        
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+        
+        throw new GraphQLError(`Failed to search products: ${error.message}`, {
+          extensions: { code: 'SEARCH_PRODUCTS_ERROR' }
         });
       }
     },
@@ -193,6 +441,9 @@ export const productResolvers = {
         
         const product = await Product.create(productData);
         await product.populate('createdBy', 'id firstName lastName email');
+
+        // Invalidate related cache
+        await productCacheService.invalidateProduct(product._id, product);
         
         const duration = Date.now() - startTime;
         graphqlLogger.operationComplete('addProduct', duration, true);
@@ -289,6 +540,9 @@ export const productResolvers = {
         // Save the updated product
         await product.save();
         await product.populate('createdBy', 'id firstName lastName email');
+
+        // Invalidate related cache
+        await productCacheService.invalidateProduct(product._id, product);
         
         const duration = Date.now() - startTime;
         graphqlLogger.operationComplete('updateProduct', duration, true);
@@ -336,6 +590,9 @@ export const productResolvers = {
         // Soft delete by setting isActive to false
         product.isActive = false;
         await product.save();
+
+        // Invalidate related cache
+        await productCacheService.invalidateProduct(product._id, product);
         
         const duration = Date.now() - startTime;
         graphqlLogger.operationComplete('deleteProduct', duration, true);
