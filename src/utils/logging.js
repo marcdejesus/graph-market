@@ -232,7 +232,62 @@ export const performanceLogger = {
       operation,
       type: 'cache'
     });
-  }
+  },
+  
+  cacheSet: (key, operation) => {
+    logger.debug('Cache Set', { 
+      key: key.substring(0, 50), 
+      operation, 
+      type: 'cache' 
+    });
+  },
+  
+  info: (message, meta = {}) => {
+    logger.info(message, { ...meta, type: 'performance' });
+  },
+  
+  warn: (message, meta = {}) => {
+    logger.warn(message, { ...meta, type: 'performance' });
+  },
+  
+  error: (message, meta = {}) => {
+    logger.error(message, { ...meta, type: 'performance' });
+  },
+  
+  debug: (message, meta = {}) => {
+    logger.debug(message, { ...meta, type: 'performance' });
+  },
+  
+  // Specific performance metrics
+  queryPerformance: (operation, duration, complexity = 0) => {
+    logger.info('Query performance', {
+      operation,
+      duration,
+      complexity,
+      type: 'query_performance',
+    });
+  },
+  
+  dbQueryPerformance: (queryName, duration, success = true) => {
+    logger.info('Database query performance', {
+      queryName,
+      duration,
+      success,
+      type: 'db_performance',
+    });
+  },
+  
+  apiResponse: (req, res, duration) => {
+    logger.info('API response', {
+      method: req.method,
+      url: req.originalUrl,
+      statusCode: res.statusCode,
+      duration,
+      userAgent: req.get('User-Agent'),
+      ip: req.ip,
+      type: 'api_response',
+    });
+  },
 };
 
 // Error logger with context
