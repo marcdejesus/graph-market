@@ -236,7 +236,7 @@ describe('Product CRUD Integration Tests', () => {
       );
 
       expect(result.body.singleResult.errors).toBeDefined();
-      expect(result.body.singleResult.errors[0].message).toContain('Product name is required');
+      expect(result.body.singleResult.errors[0].message).toContain('Field "name" of required type "String!" was not provided');
 
       // Test negative price
       result = await apolloServer.executeOperation(
@@ -293,6 +293,15 @@ describe('Product CRUD Integration Tests', () => {
           stock: 0,
           createdBy: adminUser._id,
           isActive: true
+        },
+        {
+          name: 'Wireless Mouse',
+          description: 'Ergonomic wireless mouse',
+          category: 'Accessories',
+          price: 49.99,
+          stock: 75,
+          createdBy: adminUser._id,
+          isActive: true
         }
       ]);
     });
@@ -334,8 +343,8 @@ describe('Product CRUD Integration Tests', () => {
       expect(result.body.singleResult.errors).toBeUndefined();
       
       const products = result.body.singleResult.data.products;
-      expect(products.edges).toHaveLength(4);
-      expect(products.totalCount).toBe(4);
+      expect(products.edges).toHaveLength(5);
+      expect(products.totalCount).toBe(5);
       expect(products.pageInfo.hasNextPage).toBe(false);
     });
 
@@ -442,7 +451,7 @@ describe('Product CRUD Integration Tests', () => {
       );
 
       products = result.body.singleResult.data.products;
-      expect(products.edges).toHaveLength(1);
+      expect(products.edges).toHaveLength(2);
       expect(products.edges[0].node.name).toBe('Out of Stock Item');
     });
 
