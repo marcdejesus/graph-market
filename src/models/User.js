@@ -36,8 +36,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for better query performance
-userSchema.index({ email: 1 });
+// Index for better query performance (email index is automatically created by unique: true)
 userSchema.index({ role: 1 });
 
 // Hash password before saving

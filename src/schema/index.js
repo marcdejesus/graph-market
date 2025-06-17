@@ -11,6 +11,7 @@ export const typeDefs = gql`
     role: Role!
     firstName: String
     lastName: String
+    fullName: String
     isActive: Boolean!
     createdAt: Date!
     updatedAt: Date!
