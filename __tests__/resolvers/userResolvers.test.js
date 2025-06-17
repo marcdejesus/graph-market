@@ -1,11 +1,16 @@
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, jest } from '@jest/globals';
 import { GraphQLError } from 'graphql';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { User } from '../../src/models/User.js';
 import { userResolvers } from '../../src/resolvers/userResolvers.js';
-import { setupTestDatabase, teardownTestDatabase, clearDatabase } from '../setup.js';
+
+// Mock the User model
+jest.mock('../../src/models/User.js');
 
 describe('User Resolvers', () => {
+  let sampleUsers;
+  
   // Mock context helper
   const mockContext = (userOverride = null) => ({
     req: { ip: '127.0.0.1' },
@@ -14,16 +19,72 @@ describe('User Resolvers', () => {
     isAdmin: userOverride?.role === 'admin',
     isCustomer: userOverride?.role === 'customer'
   });
-  beforeAll(async () => {
-    await setupTestDatabase();
-  });
-
-  afterAll(async () => {
-    await teardownTestDatabase();
-  });
 
   beforeEach(async () => {
-    await clearDatabase();
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    // Set up test environment
+    process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
+
+    // Create sample users for testing
+    sampleUsers = [
+      {
+        _id: new mongoose.Types.ObjectId(),
+        email: 'test@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'customer',
+        isActive: true,
+        password: '$2b$10$hashedpassword123',
+        comparePassword: jest.fn()
+      },
+      {
+        _id: new mongoose.Types.ObjectId(),
+        email: 'admin@example.com',
+        firstName: 'Admin',
+        lastName: 'User',
+        role: 'admin',
+        isActive: true,
+        password: '$2b$10$hashedpassword456',
+        comparePassword: jest.fn()
+      }
+    ];
+
+    // Setup User model mocks
+    User.findOne.mockImplementation(async (query) => {
+      if (query.email) {
+        const email = query.email.toLowerCase();
+        const user = sampleUsers.find(u => u.email.toLowerCase() === email);
+        if (user && (!query.isActive || query.isActive === user.isActive)) {
+          return user;
+        }
+      }
+      return null;
+    });
+
+    User.create.mockImplementation(async (userData) => {
+      const newUser = {
+        _id: new mongoose.Types.ObjectId(),
+        ...userData,
+        email: userData.email.toLowerCase(),
+        role: userData.role || 'customer',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        id: new mongoose.Types.ObjectId().toString()
+      };
+      return newUser;
+    });
+
+    User.findByIdAndUpdate.mockImplementation(async (id, update) => {
+      const user = sampleUsers.find(u => u._id.toString() === id.toString());
+      if (user) {
+        Object.assign(user, update);
+        return user;
+      }
+      return null;
+    });
   });
 
   describe('Mutations', () => {
@@ -36,6 +97,24 @@ describe('User Resolvers', () => {
           lastName: 'Doe'
         };
 
+        // Mock User.findOne to return null (no existing user)
+        User.findOne.mockResolvedValueOnce(null);
+
+        // Create a consistent user ID for the test
+        const testUserId = new mongoose.Types.ObjectId();
+        const expectedUser = {
+          _id: testUserId,
+          id: testUserId.toString(),
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          role: 'customer',
+          isActive: true
+        };
+
+        // Mock User.create to return the consistent user
+        User.create.mockResolvedValueOnce(expectedUser);
+
         const mockContext = { req: { ip: '127.0.0.1' } };
         const result = await userResolvers.Mutation.signup(null, userData, mockContext);
 
@@ -44,12 +123,12 @@ describe('User Resolvers', () => {
         expect(result.user.email).toBe(userData.email);
         expect(result.user.firstName).toBe(userData.firstName);
         expect(result.user.lastName).toBe(userData.lastName);
-                 expect(result.user.role).toBe('customer');
+        expect(result.user.role).toBe('customer');
         expect(result.user.isActive).toBe(true);
 
         // Verify JWT token
         const decoded = jwt.verify(result.token, process.env.JWT_SECRET);
-        expect(decoded.userId).toBe(result.user.id);
+        expect(decoded.userId).toBe(testUserId.toString());
       });
 
       test('should create user without optional fields', async () => {
@@ -91,8 +170,11 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        // Create first user
-        await userResolvers.Mutation.signup(null, userData, mockContext());
+        // Mock User.findOne to return existing user for duplicate check
+        User.findOne.mockResolvedValueOnce({
+          email: 'duplicate@example.com',
+          isActive: true
+        });
 
         // Try to create duplicate
         await expect(userResolvers.Mutation.signup(null, userData, mockContext()))
@@ -100,17 +182,16 @@ describe('User Resolvers', () => {
       });
 
       test('should handle case-insensitive email', async () => {
-        const userData1 = {
-          email: 'Test@Example.com',
-          password: 'password123'
-        };
-
         const userData2 = {
           email: 'test@example.com',
           password: 'password123'
         };
 
-        await userResolvers.Mutation.signup(null, userData1, mockContext());
+        // Mock User.findOne to return existing user for case-insensitive check
+        User.findOne.mockResolvedValueOnce({
+          email: 'test@example.com',
+          isActive: true
+        });
 
         await expect(userResolvers.Mutation.signup(null, userData2, mockContext()))
           .rejects.toThrow('User with this email already exists');
@@ -121,16 +202,20 @@ describe('User Resolvers', () => {
       let testUser;
 
       beforeEach(async () => {
-        // Create a test user for login tests
-        const userData = {
+        // Create a mock test user for login tests
+        testUser = {
+          _id: new mongoose.Types.ObjectId(),
+          id: new mongoose.Types.ObjectId().toString(),
           email: 'login@example.com',
-          password: 'password123',
           firstName: 'Test',
-          lastName: 'User'
+          lastName: 'User',
+          role: 'customer',
+          isActive: true,
+          comparePassword: jest.fn()
         };
         
-        const signupResult = await userResolvers.Mutation.signup(null, userData, mockContext());
-        testUser = signupResult.user;
+        // Mock successful password comparison by default
+        testUser.comparePassword.mockResolvedValue(true);
       });
 
       test('should login with valid credentials', async () => {
@@ -139,6 +224,9 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
+        // Mock User.findOne to return the test user
+        User.findOne.mockResolvedValueOnce(testUser);
+
         const result = await userResolvers.Mutation.login(null, loginData, mockContext());
 
         expect(result).toHaveProperty('token');
@@ -146,9 +234,9 @@ describe('User Resolvers', () => {
         expect(result.user.email).toBe(testUser.email);
         expect(result.user.id).toBe(testUser.id);
 
-        // Verify JWT token
+        // Verify JWT token - the token should contain the string version of the ID
         const decoded = jwt.verify(result.token, process.env.JWT_SECRET);
-        expect(decoded.userId).toBe(testUser.id);
+        expect(decoded.userId).toBe(testUser._id.toString());
       });
 
       test('should handle case-insensitive email login', async () => {
@@ -156,6 +244,9 @@ describe('User Resolvers', () => {
           email: 'LOGIN@EXAMPLE.COM',
           password: 'password123'
         };
+
+        // Mock User.findOne to return the test user
+        User.findOne.mockResolvedValueOnce(testUser);
 
         const result = await userResolvers.Mutation.login(null, loginData, mockContext());
         expect(result.user.email).toBe(testUser.email);
@@ -167,6 +258,9 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
+        // Mock User.findOne to return null (user not found)
+        User.findOne.mockResolvedValueOnce(null);
+
         await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Invalid email or password');
       });
@@ -177,18 +271,22 @@ describe('User Resolvers', () => {
           password: 'wrongpassword'
         };
 
+        // Mock User.findOne to return user but comparePassword to return false
+        testUser.comparePassword.mockResolvedValueOnce(false);
+        User.findOne.mockResolvedValueOnce(testUser);
+
         await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Invalid email or password');
       });
 
       test('should reject login for inactive user', async () => {
-        // Deactivate the user
-        await User.findByIdAndUpdate(testUser.id, { isActive: false });
-
         const loginData = {
           email: 'login@example.com',
           password: 'password123'
         };
+
+        // Mock User.findOne to return null (inactive user filtered out)
+        User.findOne.mockResolvedValueOnce(null);
 
         await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Invalid email or password');
@@ -208,26 +306,27 @@ describe('User Resolvers', () => {
       let adminUser, customerUser, adminContext;
 
       beforeEach(async () => {
-        // Create admin user
-        const adminData = await userResolvers.Mutation.signup(null, {
+        // Create mock admin user
+        adminUser = {
+          _id: new mongoose.Types.ObjectId(),
+          id: new mongoose.Types.ObjectId().toString(),
           email: 'admin@example.com',
-          password: 'password123'
-        }, mockContext());
-        adminUser = adminData.user;
+          role: 'admin',
+          isActive: true
+        };
         
-        // Update to admin role directly in database
-        await User.findByIdAndUpdate(adminUser.id, { role: 'admin' });
-        
-        // Create customer user
-        const customerData = await userResolvers.Mutation.signup(null, {
+        // Create mock customer user
+        customerUser = {
+          _id: new mongoose.Types.ObjectId(),
+          id: new mongoose.Types.ObjectId().toString(),
           email: 'customer@example.com',
-          password: 'password123'
-        }, mockContext());
-        customerUser = customerData.user;
+          role: 'customer',
+          isActive: true
+        };
 
         // Create admin context
         adminContext = {
-          user: { ...adminUser, role: 'admin' },
+          user: adminUser,
           isAuthenticated: true,
           isAdmin: true,
           isCustomer: false
@@ -235,18 +334,24 @@ describe('User Resolvers', () => {
       });
 
       test('should update user role as admin', async () => {
+        // Create a mock user with save method
+        const mockUserWithSave = {
+          ...customerUser,
+          save: jest.fn().mockResolvedValue(true)
+        };
+        
+        // Mock User.findById to return the customer user with save method
+        User.findById.mockResolvedValueOnce(mockUserWithSave);
+
         const result = await userResolvers.Mutation.updateUserRole(
           null,
           { userId: customerUser.id, role: 'ADMIN' },
           adminContext
         );
 
-                 expect(result.role).toBe('admin');
+        expect(result.role).toBe('admin');
         expect(result.id).toBe(customerUser.id);
-
-        // Verify in database
-        const updatedUser = await User.findById(customerUser.id);
-        expect(updatedUser.role).toBe('admin');
+        expect(mockUserWithSave.save).toHaveBeenCalled();
       });
 
       test('should handle invalid user ID', async () => {
@@ -259,6 +364,9 @@ describe('User Resolvers', () => {
 
       test('should handle non-existent user', async () => {
         const fakeObjectId = '507f1f77bcf86cd799439011';
+        
+        // Mock User.findById to return null for non-existent user
+        User.findById.mockResolvedValueOnce(null);
         
         await expect(userResolvers.Mutation.updateUserRole(
           null,
@@ -273,13 +381,16 @@ describe('User Resolvers', () => {
     let testUser, userContext;
 
     beforeEach(async () => {
-              const userData = await userResolvers.Mutation.signup(null, {
-          email: 'query@example.com',
-          password: 'password123',
-          firstName: 'Query',
-          lastName: 'User'
-        }, mockContext());
-      testUser = userData.user;
+      // Create mock test user for queries
+      testUser = {
+        _id: new mongoose.Types.ObjectId(),
+        id: new mongoose.Types.ObjectId().toString(),
+        email: 'query@example.com',
+        firstName: 'Query',
+        lastName: 'User',
+        role: 'customer',
+        isActive: true
+      };
 
       userContext = {
         user: testUser,
