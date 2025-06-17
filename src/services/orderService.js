@@ -20,7 +20,7 @@ export class OrderService {
    */
   static isValidStatusTransition(currentStatus, newStatus) {
     const allowedTransitions = this.VALID_TRANSITIONS[currentStatus];
-    return allowedTransitions && allowedTransitions.includes(newStatus);
+    return allowedTransitions ? allowedTransitions.includes(newStatus) : false;
   }
 
   /**

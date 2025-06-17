@@ -5,42 +5,61 @@ import { User } from '../../src/models/User.js';
 import { orderResolvers } from '../../src/resolvers/orderResolvers.js';
 import { generateToken } from '../../src/utils/auth.js';
 import { OrderService } from '../../src/services/orderService.js';
+import { extractTokenFromHeader } from '../../src/utils/auth.js';
+import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 // Mock dependencies
 jest.mock('../../src/utils/logging.js', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
   }
 }));
 
-describe('Order Resolvers', () => {
-  // Skip database-dependent tests in CI environment
-  if (process.env.CI) {
-    test('Order tests skipped in CI environment', () => {
-      console.warn('Order tests skipped in CI environment');
-      expect(true).toBe(true); // Dummy test to prevent Jest failure
-    });
-    return;
+// Database setup for both local and CI environments
+let isConnected = false;
+
+beforeAll(async () => {
+  try {
+    // Use CI database URL if in CI, otherwise use local test database
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/graphmarket-test';
+    
+    if (mongoose.connection.readyState === 0) {
+      await mongoose.connect(mongoUri);
+      isConnected = true;
+    }
+  } catch (error) {
+    console.warn('MongoDB connection failed, using fallback tests:', error.message);
+    isConnected = false;
   }
+});
+
+afterAll(async () => {
+  if (isConnected && mongoose.connection.readyState === 1) {
+    await mongoose.disconnect();
+  }
+});
+
+beforeEach(async () => {
+  if (isConnected) {
+    // Clean up collections before each test
+    await Order.deleteMany({});
+    await Product.deleteMany({});
+    await User.deleteMany({});
+  }
+});
+
+describe('Order Resolvers', () => {
+  // Tests now run in CI environment with proper database setup
 
   let mockUser, mockAdmin, mockProduct, mockOrder;
   let userToken, adminToken;
-  let databaseConnected = false;
-
-  beforeAll(async () => {
-    try {
-      // Test database connection with a simple operation
-      await User.findOne().maxTimeMS(2000);
-      databaseConnected = true;
-    } catch (error) {
-      console.warn('Database connection failed, using mock implementations');
-      databaseConnected = false;
-    }
-  });
 
   beforeEach(async () => {
-    if (!databaseConnected) {
+    if (!isConnected) {
       console.warn('Skipping database setup due to connection issues');
       // Still generate mock tokens for authentication tests
       const mockUserId = '507f1f77bcf86cd799439011';
@@ -51,18 +70,6 @@ describe('Order Resolvers', () => {
     }
 
     try {
-      // Clean up database with timeout
-      await Promise.race([
-        Promise.all([
-          Order.deleteMany({}),
-          Product.deleteMany({}),
-          User.deleteMany({})
-        ]),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Database cleanup timeout')), 5000)
-        )
-      ]);
-
       // Create test users
       mockUser = await User.create({
         email: 'customer@test.com',
@@ -107,7 +114,7 @@ describe('Order Resolvers', () => {
       });
     } catch (error) {
       console.warn('Database setup failed:', error.message);
-      databaseConnected = false;
+      isConnected = false;
       // Generate mock tokens even when database fails
       const mockUserId = '507f1f77bcf86cd799439011';
       const mockAdminId = '507f1f77bcf86cd799439012';
@@ -118,7 +125,7 @@ describe('Order Resolvers', () => {
 
   describe('Query: myOrders', () => {
     it('should return user orders when authenticated', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -139,7 +146,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should return empty array when user has no orders', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -155,7 +162,7 @@ describe('Order Resolvers', () => {
 
   describe('Query: order', () => {
     it('should return order for owner', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -168,7 +175,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should return order for admin', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -181,7 +188,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error when user tries to access another user order', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -200,7 +207,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -216,7 +223,7 @@ describe('Order Resolvers', () => {
 
   describe('Query: allOrders', () => {
     it('should return all orders for admin', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -230,7 +237,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should filter orders by status', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -251,7 +258,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         // Test authentication without database dependency
         const context = { token: userToken };
         await expect(orderResolvers.Query.allOrders({}, {}, context))
@@ -268,7 +275,7 @@ describe('Order Resolvers', () => {
 
   describe('Query: orderStats', () => {
     it('should return order analytics for admin', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -286,7 +293,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         // Test authentication without database dependency
         const context = { token: userToken };
         await expect(orderResolvers.Query.orderStats({}, {}, context))
@@ -303,7 +310,7 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: placeOrder', () => {
     it('should create order with valid input', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -333,7 +340,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for insufficient stock', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -349,7 +356,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent product', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -366,7 +373,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for inactive product', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -404,7 +411,7 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: cancelOrder', () => {
     it('should cancel order by owner', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -425,7 +432,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should cancel order by admin', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -442,7 +449,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error when user tries to cancel another user order', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -464,7 +471,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -481,7 +488,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for already delivered order', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -500,7 +507,7 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: updateOrderStatus', () => {
     it('should update order status by admin', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -517,7 +524,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for invalid status transition', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -534,7 +541,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         // Test authentication without database dependency
         const context = { token: userToken };
         await expect(orderResolvers.Mutation.updateOrderStatus(
@@ -555,7 +562,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
@@ -575,7 +582,7 @@ describe('Order Resolvers', () => {
   describe('Field Resolvers', () => {
     describe('Order.user', () => {
       it('should return populated user', async () => {
-        if (!databaseConnected) {
+        if (!isConnected) {
           console.warn('Skipping test due to database connection issues');
           expect(true).toBe(true);
           return;
@@ -589,7 +596,7 @@ describe('Order Resolvers', () => {
       });
 
       it('should populate user when not already populated', async () => {
-        if (!databaseConnected) {
+        if (!isConnected) {
           console.warn('Skipping test due to database connection issues');
           expect(true).toBe(true);
           return;
@@ -604,7 +611,7 @@ describe('Order Resolvers', () => {
 
     describe('Order.items', () => {
       it('should return populated items', async () => {
-        if (!databaseConnected) {
+        if (!isConnected) {
           console.warn('Skipping test due to database connection issues');
           expect(true).toBe(true);
           return;
@@ -636,7 +643,7 @@ describe('Order Resolvers', () => {
 
     describe('OrderItem.product', () => {
       it('should return populated product', async () => {
-        if (!databaseConnected) {
+        if (!isConnected) {
           console.warn('Skipping test due to database connection issues');
           expect(true).toBe(true);
           return;
@@ -682,7 +689,7 @@ describe('Order Resolvers', () => {
 
   describe('Stock Management', () => {
     it('should handle concurrent order creation correctly', async () => {
-      if (!databaseConnected) {
+      if (!isConnected) {
         console.warn('Skipping test due to database connection issues');
         expect(true).toBe(true);
         return;
