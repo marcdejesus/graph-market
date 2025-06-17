@@ -19,27 +19,14 @@ jest.mock('../../src/utils/logging.js', () => ({
   }
 }));
 
-// Database setup for both local and CI environments
+// Database connection is handled by Jest global setup/teardown
 let isConnected = false;
 
 beforeAll(async () => {
-  try {
-    // Use CI database URL if in CI, otherwise use local test database
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/graphmarket-test';
-    
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(mongoUri);
-      isConnected = true;
-    }
-  } catch (error) {
-    console.warn('MongoDB connection failed, using fallback tests:', error.message);
-    isConnected = false;
-  }
-});
-
-afterAll(async () => {
-  if (isConnected && mongoose.connection.readyState === 1) {
-    await mongoose.disconnect();
+  // Check if database is connected from global setup
+  isConnected = mongoose.connection.readyState === 1;
+  if (!isConnected) {
+    console.warn('Database not connected, tests will use fallback behavior');
   }
 });
 

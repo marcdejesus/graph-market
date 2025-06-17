@@ -14,8 +14,8 @@ module.exports = {
   ],
 
   // Setup and teardown
-  // setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js'],
-  globalTeardown: '<rootDir>/__tests__/teardown.js',
+  globalSetup: '<rootDir>/__tests__/globalSetup.js',
+  globalTeardown: '<rootDir>/__tests__/globalTeardown.js',
 
   // Test timeouts
   testTimeout: 30000, // 30 seconds for regular tests
@@ -59,7 +59,6 @@ module.exports = {
         '^.+\\.js$': 'babel-jest',
       },
       testEnvironment: 'node',
-      globalTeardown: '<rootDir>/__tests__/teardown.js',
     },
     {
       displayName: 'integration',
@@ -68,7 +67,6 @@ module.exports = {
         '^.+\\.js$': 'babel-jest',
       },
       testEnvironment: 'node',
-      globalTeardown: '<rootDir>/__tests__/teardown.js',
     },
   ],
 
