@@ -171,16 +171,21 @@ export const setupTestDatabase = async () => {
     }
     
     // Use a test database URI or mock connection
-    const mongoUri = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/graph-market-test';
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/graph-market-test';
 
-    // Connect to test database (only if MongoDB is available)
-    if (process.env.CI !== 'true') {
-      try {
-        await mongoose.connect(mongoUri);
-      } catch (error) {
-        console.warn('MongoDB not available for tests, using mocks instead');
-        // Don't fail the tests if MongoDB is not available
-      }
+    // Connect to test database with increased timeout for CI
+    const connectOptions = {
+      serverSelectionTimeoutMS: process.env.CI ? 30000 : 5000,
+      connectTimeoutMS: process.env.CI ? 30000 : 5000,
+      socketTimeoutMS: process.env.CI ? 30000 : 5000,
+    };
+
+    try {
+      await mongoose.connect(mongoUri, connectOptions);
+      console.log('✅ Test database connected successfully');
+    } catch (error) {
+      console.warn('MongoDB not available for tests, using mocks instead:', error.message);
+      // Don't fail the tests if MongoDB is not available
     }
   } catch (error) {
     console.warn('Database setup skipped:', error.message);
@@ -199,12 +204,40 @@ export const teardownTestDatabase = async () => {
   }
 };
 
-// Clear database between tests
+// Clear database between tests with retry logic
 export const clearDatabase = async () => {
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    const collection = collections[key];
-    await collection.deleteMany({});
+  const maxRetries = 3;
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      if (mongoose.connection.readyState !== 1) {
+        console.warn('Database not connected, skipping cleanup');
+        return;
+      }
+      
+      const collections = mongoose.connection.collections;
+      const deletePromises = [];
+      
+      for (const key in collections) {
+        const collection = collections[key];
+        deletePromises.push(collection.deleteMany({}));
+      }
+      
+      await Promise.all(deletePromises);
+      return; // Success, exit retry loop
+    } catch (error) {
+      retries++;
+      console.warn(`Database cleanup attempt ${retries} failed:`, error.message);
+      
+      if (retries >= maxRetries) {
+        console.error('Database cleanup failed after', maxRetries, 'attempts');
+        throw error;
+      }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+    }
   }
 };
 
