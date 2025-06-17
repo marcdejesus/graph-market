@@ -52,7 +52,7 @@ jobs:
       run: npm run lint || echo "Linter not configured yet"
 
     - name: Run tests
-      run: npm test -- --testTimeout=30000
+      run: npm test -- --testTimeout=30000 --maxWorkers=2
       env:
         NODE_ENV: test
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test
@@ -64,7 +64,7 @@ jobs:
         CI: true
 
     - name: Run product-specific tests
-      run: npm test -- __tests__/resolvers/productResolvers.test.js --testTimeout=30000
+      run: npm test -- __tests__/resolvers/productResolvers.test.js --testTimeout=30000 --maxWorkers=1
       env:
         NODE_ENV: test
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test
