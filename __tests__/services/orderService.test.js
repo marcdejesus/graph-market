@@ -4,7 +4,7 @@ import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { GraphQLError } from 'graphql';
 import mongoose from 'mongoose';
-// import { connectDB, disconnectDB } from '../../src/config/database.js'; // No longer needed here
+import { ensureTestDBConnection, clearTestCollections } from '../utils/testDB.js';
 
 // Mock the logger
 jest.mock('../../src/utils/logging.js', () => ({
@@ -16,23 +16,16 @@ jest.mock('../../src/utils/logging.js', () => ({
   },
 }));
 
-/*
 beforeAll(async () => {
-  await connectDB();
+  process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
+  await ensureTestDBConnection();
 });
-
-afterAll(async () => {
-  await disconnectDB();
-});
-*/
 
 describe('OrderService', () => {
   let mockUser, mockProduct1, mockProduct2, mockOrder;
 
   beforeEach(async () => {
-    await Order.deleteMany({});
-    await Product.deleteMany({});
-    await User.deleteMany({});
+    await clearTestCollections();
 
     mockUser = await User.create({
       email: 'customer@test.com',
@@ -49,6 +42,7 @@ describe('OrderService', () => {
       price: 99.99,
       stock: 10,
       isActive: true,
+      createdBy: mockUser._id,
     });
 
     mockProduct2 = await Product.create({
@@ -58,6 +52,7 @@ describe('OrderService', () => {
       price: 49.99,
       stock: 5,
       isActive: true,
+      createdBy: mockUser._id,
     });
 
     mockOrder = await Order.create({
@@ -436,7 +431,8 @@ describe('OrderService', () => {
         category: 'Electronics',
         price: 50,
         stock: 1,
-        isActive: true
+        isActive: true,
+        createdBy: mockUser._id
       });
 
       const orderInput = {

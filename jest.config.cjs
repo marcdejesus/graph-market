@@ -1,6 +1,9 @@
 module.exports = {
   // Test environment
   testEnvironment: 'node',
+  
+  // Set environment variables for tests
+  setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js'],
 
   // Module system
   transform: {

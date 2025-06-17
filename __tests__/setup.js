@@ -9,6 +9,7 @@ config({ path: '.env.test' });
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
 process.env.LOG_LEVEL = 'error'; // Reduce log noise during tests
+process.env.MONGODB_URI = 'mongodb://localhost:27017/graphmarket-test';
 
 // Global test configuration
 global.testTimeout = 30000;
@@ -208,4 +209,14 @@ export const clearDatabase = async () => {
 };
 
 // Mock environment variables
-process.env.JWT_EXPIRES_IN = '7d'; 
+process.env.JWT_EXPIRES_IN = '7d';
+
+// Disable console.log in tests to reduce noise
+global.console = {
+  ...console,
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+}; 

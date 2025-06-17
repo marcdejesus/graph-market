@@ -4,8 +4,9 @@ import { Order } from '../../src/models/Order.js';
 import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { orderResolvers } from '../../src/resolvers/orderResolvers.js';
+import { OrderService } from '../../src/services/orderService.js';
 import { generateToken } from '../../src/utils/auth.js';
-// import { connectDB, disconnectDB } from '../../src/config/database.js'; // No longer needed here
+import { ensureTestDBConnection, clearTestCollections } from '../utils/testDB.js';
 
 jest.mock('../../src/utils/logging.js', () => ({
   logger: {
@@ -16,24 +17,24 @@ jest.mock('../../src/utils/logging.js', () => ({
   },
 }));
 
-/*
 beforeAll(async () => {
-  await connectDB();
+  process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
+  await ensureTestDBConnection();
 });
-
-afterAll(async () => {
-  await disconnectDB();
-});
-*/
 
 describe('Order Resolvers', () => {
   let mockUser, mockAdmin, mockProduct, mockOrder;
   let userToken, adminToken;
 
+  const createContext = (user) => ({
+    user,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin',
+    isCustomer: user?.role === 'customer',
+  });
+
   beforeEach(async () => {
-    await Order.deleteMany({});
-    await Product.deleteMany({});
-    await User.deleteMany({});
+    await clearTestCollections();
 
     mockUser = await User.create({
       email: 'customer@test.com',
@@ -58,6 +59,7 @@ describe('Order Resolvers', () => {
       price: 99.99,
       stock: 10,
       isActive: true,
+      createdBy: mockAdmin._id,
     });
 
     userToken = generateToken(mockUser._id, mockUser.role);
@@ -79,20 +81,20 @@ describe('Order Resolvers', () => {
 
   describe('Query: myOrders', () => {
     it('should return user orders when authenticated', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
       const result = await orderResolvers.Query.myOrders({}, {}, context);
       expect(result).toHaveLength(1);
       expect(result[0]._id.toString()).toBe(mockOrder._id.toString());
     });
 
     it('should throw error when not authenticated', async () => {
-      const context = {};
+      const context = createContext(null);
       await expect(orderResolvers.Query.myOrders({}, {}, context)).rejects.toThrow('Authentication required');
     });
 
     it('should return empty array when user has no orders', async () => {
       await Order.deleteMany({});
-      const context = { token: userToken };
+      const context = createContext(mockUser);
       const result = await orderResolvers.Query.myOrders({}, {}, context);
       expect(result).toHaveLength(0);
     });
@@ -433,7 +435,8 @@ describe('Order Resolvers', () => {
         category: 'Electronics',
         price: 50,
         stock: 1,
-        isActive: true
+        isActive: true,
+        createdBy: mockAdmin._id
       });
 
       const orderInput = {
