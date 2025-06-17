@@ -9,7 +9,7 @@ A modern, GraphQL-powered headless e-commerce API built with Node.js, Apollo Ser
 - **Product Management**: Full CRUD operations with advanced filtering and search
 - **Order Processing**: Complete order lifecycle management with inventory tracking
 - **Caching**: Redis integration for optimal performance
-- **Security**: Rate limiting, input validation, and secure authentication
+- **Enterprise Security**: Multi-level rate limiting, input sanitization, comprehensive logging, CORS protection
 - **Containerized**: Full Docker setup for easy development and deployment
 
 ## 🛠️ Tech Stack
@@ -201,6 +201,41 @@ Authorization: Bearer YOUR_JWT_TOKEN
 
 - **Customer**: Can browse products, place orders, view their own orders
 - **Admin**: Full access to all operations including user management and analytics
+
+## 🔒 Security Features
+
+### Input Sanitization
+- **XSS Protection**: Removes malicious scripts and event handlers
+- **SQL Injection Prevention**: Validates against injection patterns
+- **Email Sanitization**: RFC-compliant email validation and normalization
+- **Name Validation**: Allows only safe characters and patterns
+
+### Rate Limiting
+- **General API**: 100 requests per 15 minutes per IP
+- **Authentication**: 5 auth attempts per 15 minutes per IP
+- **GraphQL-Aware**: Operation-specific rate limiting
+- **Progressive Delays**: Exponential backoff for repeated violations
+
+### Security Logging
+```bash
+# Real-time security event tracking
+Authentication attempts (success/failure)
+Rate limit violations
+Suspicious activity detection
+Input validation failures
+```
+
+### Production Security Headers
+- Content Security Policy
+- HTTP Strict Transport Security (HSTS)
+- X-Frame-Options
+- X-Content-Type-Options
+- Referrer-Policy
+
+### CORS Configuration
+- Environment-specific origin whitelisting
+- Credential-aware request handling
+- Method and header restrictions
 
 ## 🗄️ Database Schema
 

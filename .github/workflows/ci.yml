@@ -58,6 +58,9 @@ jobs:
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test
         REDIS_URI: redis://localhost:6379
         JWT_SECRET: test-jwt-secret-key
+        RATE_LIMIT_WINDOW_MS: 900000
+        RATE_LIMIT_MAX_REQUESTS: 100
+        LOG_LEVEL: error
 
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3

@@ -3,6 +3,8 @@ import { User } from '../models/User.js';
 import { generateToken } from '../utils/auth.js';
 import { validateEmail, validatePassword, validateObjectId } from '../utils/validation.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { sanitizeEmail, sanitizeName, validateNoSQLInjection } from '../utils/sanitization.js';
+import { securityLogger } from '../utils/logging.js';
 
 export const userResolvers = {
   Query: {
@@ -32,15 +34,26 @@ export const userResolvers = {
 
   Mutation: {
     // User signup
-    signup: async (parent, { email, password, firstName, lastName }) => {
+    signup: async (parent, { email, password, firstName, lastName }, context) => {
+      const clientIP = context.req?.ip || 'unknown';
+      
       try {
-        // Validate input
-        validateEmail(email);
+        // Sanitize and validate input
+        const sanitizedEmail = sanitizeEmail(email);
+        const sanitizedFirstName = firstName ? sanitizeName(firstName) : undefined;
+        const sanitizedLastName = lastName ? sanitizeName(lastName) : undefined;
+        
+        validateEmail(sanitizedEmail);
         validatePassword(password);
+        validateNoSQLInjection(sanitizedEmail, 'email');
+        
+        if (sanitizedFirstName) validateNoSQLInjection(sanitizedFirstName, 'firstName');
+        if (sanitizedLastName) validateNoSQLInjection(sanitizedLastName, 'lastName');
 
         // Check if user already exists
-        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        const existingUser = await User.findOne({ email: sanitizedEmail });
         if (existingUser) {
+          securityLogger.authenticationFailure(sanitizedEmail, clientIP, 'User already exists');
           throw new GraphQLError('User with this email already exists', {
             extensions: {
               code: 'USER_ALREADY_EXISTS',
@@ -51,10 +64,10 @@ export const userResolvers = {
 
         // Create new user
         const userData = {
-          email: email.toLowerCase(),
+          email: sanitizedEmail,
           password,
-          firstName: firstName?.trim(),
-          lastName: lastName?.trim(),
+          firstName: sanitizedFirstName,
+          lastName: sanitizedLastName,
         };
 
         const user = await User.create(userData);
@@ -62,12 +75,16 @@ export const userResolvers = {
         // Generate JWT token
         const token = generateToken(user._id);
 
+        // Log successful signup
+        securityLogger.authenticationAttempt(sanitizedEmail, true, clientIP, 'User signup');
+
         return {
           token,
           user,
         };
       } catch (error) {
         if (error instanceof GraphQLError) {
+          securityLogger.authenticationFailure(email, clientIP, error.message);
           throw error;
         }
 
@@ -75,6 +92,7 @@ export const userResolvers = {
         if (error.name === 'ValidationError') {
           const field = Object.keys(error.errors)[0];
           const message = error.errors[field].message;
+          securityLogger.authenticationFailure(email, clientIP, `Validation error: ${message}`);
           throw new GraphQLError(message, {
             extensions: {
               code: 'VALIDATION_ERROR',
@@ -83,6 +101,7 @@ export const userResolvers = {
           });
         }
 
+        securityLogger.authenticationFailure(email, clientIP, 'Internal error during signup');
         throw new GraphQLError('Failed to create user account', {
           extensions: {
             code: 'INTERNAL_ERROR',
@@ -92,11 +111,17 @@ export const userResolvers = {
     },
 
     // User login
-    login: async (parent, { email, password }) => {
+    login: async (parent, { email, password }, context) => {
+      const clientIP = context.req?.ip || 'unknown';
+      
       try {
-        // Validate input
-        validateEmail(email);
+        // Sanitize and validate input
+        const sanitizedEmail = sanitizeEmail(email);
+        validateEmail(sanitizedEmail);
+        validateNoSQLInjection(sanitizedEmail, 'email');
+        
         if (!password) {
+          securityLogger.authenticationFailure(sanitizedEmail, clientIP, 'Password missing');
           throw new GraphQLError('Password is required', {
             extensions: {
               code: 'INVALID_INPUT',
@@ -107,11 +132,12 @@ export const userResolvers = {
 
         // Find user by email
         const user = await User.findOne({ 
-          email: email.toLowerCase(),
+          email: sanitizedEmail,
           isActive: true 
         });
 
         if (!user) {
+          securityLogger.authenticationFailure(sanitizedEmail, clientIP, 'User not found');
           throw new GraphQLError('Invalid email or password', {
             extensions: {
               code: 'INVALID_CREDENTIALS',
@@ -122,6 +148,7 @@ export const userResolvers = {
         // Verify password
         const isValidPassword = await user.comparePassword(password);
         if (!isValidPassword) {
+          securityLogger.authenticationFailure(sanitizedEmail, clientIP, 'Invalid password');
           throw new GraphQLError('Invalid email or password', {
             extensions: {
               code: 'INVALID_CREDENTIALS',
@@ -132,6 +159,9 @@ export const userResolvers = {
         // Generate JWT token
         const token = generateToken(user._id);
 
+        // Log successful login
+        securityLogger.authenticationAttempt(sanitizedEmail, true, clientIP, 'User login');
+
         return {
           token,
           user,
@@ -141,6 +171,7 @@ export const userResolvers = {
           throw error;
         }
 
+        securityLogger.authenticationFailure(email, clientIP, 'Internal error during login');
         throw new GraphQLError('Login failed', {
           extensions: {
             code: 'INTERNAL_ERROR',

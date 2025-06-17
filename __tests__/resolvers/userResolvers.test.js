@@ -6,6 +6,14 @@ import { userResolvers } from '../../src/resolvers/userResolvers.js';
 import { setupTestDatabase, teardownTestDatabase, clearDatabase } from '../setup.js';
 
 describe('User Resolvers', () => {
+  // Mock context helper
+  const mockContext = (userOverride = null) => ({
+    req: { ip: '127.0.0.1' },
+    user: userOverride,
+    isAuthenticated: !!userOverride,
+    isAdmin: userOverride?.role === 'admin',
+    isCustomer: userOverride?.role === 'customer'
+  });
   beforeAll(async () => {
     await setupTestDatabase();
   });
@@ -28,7 +36,8 @@ describe('User Resolvers', () => {
           lastName: 'Doe'
         };
 
-        const result = await userResolvers.Mutation.signup(null, userData);
+        const mockContext = { req: { ip: '127.0.0.1' } };
+        const result = await userResolvers.Mutation.signup(null, userData, mockContext);
 
         expect(result).toHaveProperty('token');
         expect(result).toHaveProperty('user');
@@ -49,7 +58,7 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        const result = await userResolvers.Mutation.signup(null, userData);
+        const result = await userResolvers.Mutation.signup(null, userData, mockContext());
 
         expect(result.user.email).toBe(userData.email);
                  expect(result.user.firstName).toBeUndefined();
@@ -62,7 +71,7 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        await expect(userResolvers.Mutation.signup(null, userData))
+        await expect(userResolvers.Mutation.signup(null, userData, mockContext()))
           .rejects.toThrow(GraphQLError);
       });
 
@@ -72,7 +81,7 @@ describe('User Resolvers', () => {
           password: '123'
         };
 
-        await expect(userResolvers.Mutation.signup(null, userData))
+        await expect(userResolvers.Mutation.signup(null, userData, mockContext()))
           .rejects.toThrow(GraphQLError);
       });
 
@@ -83,10 +92,10 @@ describe('User Resolvers', () => {
         };
 
         // Create first user
-        await userResolvers.Mutation.signup(null, userData);
+        await userResolvers.Mutation.signup(null, userData, mockContext());
 
         // Try to create duplicate
-        await expect(userResolvers.Mutation.signup(null, userData))
+        await expect(userResolvers.Mutation.signup(null, userData, mockContext()))
           .rejects.toThrow('User with this email already exists');
       });
 
@@ -101,9 +110,9 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        await userResolvers.Mutation.signup(null, userData1);
+        await userResolvers.Mutation.signup(null, userData1, mockContext());
 
-        await expect(userResolvers.Mutation.signup(null, userData2))
+        await expect(userResolvers.Mutation.signup(null, userData2, mockContext()))
           .rejects.toThrow('User with this email already exists');
       });
     });
@@ -120,7 +129,7 @@ describe('User Resolvers', () => {
           lastName: 'User'
         };
         
-        const signupResult = await userResolvers.Mutation.signup(null, userData);
+        const signupResult = await userResolvers.Mutation.signup(null, userData, mockContext());
         testUser = signupResult.user;
       });
 
@@ -130,7 +139,7 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        const result = await userResolvers.Mutation.login(null, loginData);
+        const result = await userResolvers.Mutation.login(null, loginData, mockContext());
 
         expect(result).toHaveProperty('token');
         expect(result).toHaveProperty('user');
@@ -148,7 +157,7 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        const result = await userResolvers.Mutation.login(null, loginData);
+        const result = await userResolvers.Mutation.login(null, loginData, mockContext());
         expect(result.user.email).toBe(testUser.email);
       });
 
@@ -158,7 +167,7 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        await expect(userResolvers.Mutation.login(null, loginData))
+        await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Invalid email or password');
       });
 
@@ -168,7 +177,7 @@ describe('User Resolvers', () => {
           password: 'wrongpassword'
         };
 
-        await expect(userResolvers.Mutation.login(null, loginData))
+        await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Invalid email or password');
       });
 
@@ -181,7 +190,7 @@ describe('User Resolvers', () => {
           password: 'password123'
         };
 
-        await expect(userResolvers.Mutation.login(null, loginData))
+        await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Invalid email or password');
       });
 
@@ -190,7 +199,7 @@ describe('User Resolvers', () => {
           email: 'login@example.com'
         };
 
-        await expect(userResolvers.Mutation.login(null, loginData))
+        await expect(userResolvers.Mutation.login(null, loginData, mockContext()))
           .rejects.toThrow('Password is required');
       });
     });
@@ -203,7 +212,7 @@ describe('User Resolvers', () => {
         const adminData = await userResolvers.Mutation.signup(null, {
           email: 'admin@example.com',
           password: 'password123'
-        });
+        }, mockContext());
         adminUser = adminData.user;
         
         // Update to admin role directly in database
@@ -213,7 +222,7 @@ describe('User Resolvers', () => {
         const customerData = await userResolvers.Mutation.signup(null, {
           email: 'customer@example.com',
           password: 'password123'
-        });
+        }, mockContext());
         customerUser = customerData.user;
 
         // Create admin context
@@ -264,12 +273,12 @@ describe('User Resolvers', () => {
     let testUser, userContext;
 
     beforeEach(async () => {
-      const userData = await userResolvers.Mutation.signup(null, {
-        email: 'query@example.com',
-        password: 'password123',
-        firstName: 'Query',
-        lastName: 'User'
-      });
+              const userData = await userResolvers.Mutation.signup(null, {
+          email: 'query@example.com',
+          password: 'password123',
+          firstName: 'Query',
+          lastName: 'User'
+        }, mockContext());
       testUser = userData.user;
 
       userContext = {
