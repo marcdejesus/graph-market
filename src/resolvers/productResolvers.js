@@ -383,6 +383,11 @@ export const productResolvers = {
         const duration = Date.now() - startTime;
         performanceLogger.slowQuery('Search products', duration, { query, filter });
 
+        // Re-throw GraphQL errors directly (like validation errors)
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+
         // Log error details for debugging, but avoid logging during tests for cleaner output
         if (process.env.NODE_ENV !== 'test') {
           console.error('Search products error details:', {
@@ -393,7 +398,7 @@ export const productResolvers = {
           });
         }
         
-        // Re-throw a generic error to the client
+        // Re-throw a generic error to the client for non-GraphQL errors
         throw new GraphQLError('An error occurred while searching for products.', {
           extensions: { code: 'SEARCH_PRODUCTS_ERROR' }
         });

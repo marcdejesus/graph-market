@@ -168,7 +168,7 @@ describe('Order Resolvers', () => {
           country: 'USA'
         }
       };
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       const result = await orderResolvers.Mutation.placeOrder({}, { input }, context);
 
@@ -185,7 +185,7 @@ describe('Order Resolvers', () => {
       const input = {
         items: [{ productId: mockProduct._id, quantity: 20 }] // More than available stock
       };
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       await expect(orderResolvers.Mutation.placeOrder({}, { input }, context))
         .rejects.toThrow('Insufficient stock');
@@ -196,7 +196,7 @@ describe('Order Resolvers', () => {
       const input = {
         items: [{ productId: fakeId, quantity: 1 }]
       };
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       await expect(orderResolvers.Mutation.placeOrder({}, { input }, context))
         .rejects.toThrow('Product with ID');
@@ -208,7 +208,7 @@ describe('Order Resolvers', () => {
       const input = {
         items: [{ productId: mockProduct._id, quantity: 1 }]
       };
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       await expect(orderResolvers.Mutation.placeOrder({}, { input }, context))
         .rejects.toThrow('not available for purchase');
@@ -216,7 +216,7 @@ describe('Order Resolvers', () => {
 
     it('should throw error for empty order', async () => {
       const input = { items: [] };
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       await expect(orderResolvers.Mutation.placeOrder({}, { input }, context))
         .rejects.toThrow('Order must contain at least one item');
@@ -235,7 +235,7 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: cancelOrder', () => {
     it('should cancel order by owner', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
       const result = await orderResolvers.Mutation.cancelOrder(
         {}, 
         { orderId: mockOrder._id }, 
@@ -250,7 +250,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should cancel order by admin', async () => {
-      const context = { token: adminToken };
+      const context = createContext(mockAdmin);
       const result = await orderResolvers.Mutation.cancelOrder(
         {}, 
         { orderId: mockOrder._id }, 
@@ -267,7 +267,7 @@ describe('Order Resolvers', () => {
         role: 'customer'
       });
       const otherToken = generateToken(otherUser._id, otherUser.role);
-      const context = { token: otherToken };
+      const context = createContext(otherUser);
 
       await expect(orderResolvers.Mutation.cancelOrder(
         {}, 
@@ -277,7 +277,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-existent order', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
       const fakeId = '507f1f77bcf86cd799439011';
 
       await expect(orderResolvers.Mutation.cancelOrder(
@@ -301,7 +301,7 @@ describe('Order Resolvers', () => {
 
   describe('Mutation: updateOrderStatus', () => {
     it('should update order status by admin', async () => {
-      const context = { token: adminToken };
+      const context = createContext(mockAdmin);
       const result = await orderResolvers.Mutation.updateOrderStatus(
         {}, 
         { orderId: mockOrder._id, status: 'CONFIRMED' }, 
@@ -323,7 +323,7 @@ describe('Order Resolvers', () => {
     });
 
     it('should throw error for non-admin users', async () => {
-      const context = { token: userToken };
+      const context = createContext(mockUser);
 
       await expect(orderResolvers.Mutation.updateOrderStatus(
         {}, 

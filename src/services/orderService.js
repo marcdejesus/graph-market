@@ -121,12 +121,19 @@ export class OrderService {
 
         await order.save();
 
-        // Deduct stock for each product
+        // Deduct stock for each product with atomic operation to prevent overselling
         for (const result of validationResults) {
-          await Product.findByIdAndUpdate(
-            result.product._id,
-            { $inc: { stock: -result.requestedQuantity } }
+          const updateResult = await Product.findOneAndUpdate(
+            { _id: result.product._id, stock: { $gte: result.requestedQuantity } },
+            { $inc: { stock: -result.requestedQuantity } },
+            { new: true }
           );
+          
+          if (!updateResult) {
+            throw new GraphQLError('Insufficient stock available', {
+              extensions: { code: 'INSUFFICIENT_STOCK' }
+            });
+          }
         }
 
         logger.info('Order created successfully', {
@@ -211,7 +218,7 @@ export class OrderService {
   /**
    * Update order status (admin only)
    */
-  static async updateOrderStatus(orderId, newStatus, adminUserId) {
+  static async updateOrderStatus(orderId, newStatus) {
     try {
       const order = await Order.findById(orderId);
       
@@ -236,8 +243,7 @@ export class OrderService {
       logger.info('Order status updated', {
         orderId,
         oldStatus,
-        newStatus,
-        adminUserId
+        newStatus
       });
 
       return order;
@@ -245,8 +251,7 @@ export class OrderService {
       logger.error('Order status update failed', {
         error: error.message,
         orderId,
-        newStatus,
-        adminUserId
+        newStatus
       });
       throw error;
     }
