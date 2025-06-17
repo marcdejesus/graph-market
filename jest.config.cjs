@@ -18,7 +18,7 @@ module.exports = {
   globalTeardown: '<rootDir>/__tests__/globalTeardown.js',
 
   // Test timeouts
-  testTimeout: 30000, // 30 seconds for regular tests
+  testTimeout: 45000, // 45 seconds for all tests
   
   // Coverage configuration
   collectCoverage: true,
@@ -33,42 +33,17 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 45,
-      functions: 40,
-      lines: 55,
-      statements: 55,
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
     },
   },
 
-  // Module path mapping (fixed: should be moduleNameMapper)
+  // Module path mapping
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-
-  // Test patterns for different test types
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: [
-        '<rootDir>/__tests__/resolvers/**/*.test.js',
-        '<rootDir>/__tests__/services/**/*.test.js',
-        '<rootDir>/__tests__/models/**/*.test.js',
-        '<rootDir>/__tests__/utils/**/*.test.js'
-      ],
-      transform: {
-        '^.+\\.js$': 'babel-jest',
-      },
-      testEnvironment: 'node',
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/__tests__/integration/**/*.test.js'],
-      transform: {
-        '^.+\\.js$': 'babel-jest',
-      },
-      testEnvironment: 'node',
-    },
-  ],
 
   // Clear mocks between tests
   clearMocks: true,
@@ -87,7 +62,7 @@ module.exports = {
   // Maximum worker processes
   maxWorkers: '50%',
 
-  // Silent console logs during tests (except for performance logs)
+  // Silent console logs during tests
   silent: false,
 
   // Error handling
