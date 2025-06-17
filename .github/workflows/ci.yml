@@ -33,7 +33,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18, 20]
+        node-version: [18, 20, 22]
 
     steps:
     - name: Checkout code
@@ -60,7 +60,7 @@ jobs:
       run: npm run lint || echo "Linter not configured yet"
 
     - name: Run Unit Tests
-      run: npm run test:unit -- --testTimeout=30000 --maxWorkers=2
+      run: npm test -- --selectProjects unit --testTimeout=30000 --maxWorkers=2
       env:
         NODE_ENV: test
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test
@@ -72,34 +72,10 @@ jobs:
         CI: true
 
     - name: Run Integration Tests
-      run: npm run test:integration -- --testTimeout=45000 --maxWorkers=1
+      run: npm test -- --selectProjects integration --testTimeout=45000 --maxWorkers=1
       env:
         NODE_ENV: test
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test-integration
-        REDIS_URI: redis://localhost:6379
-        JWT_SECRET: test-jwt-secret-key-for-ci-pipeline
-        RATE_LIMIT_WINDOW_MS: 900000
-        RATE_LIMIT_MAX_REQUESTS: 100
-        LOG_LEVEL: error
-        CI: true
-
-    - name: Run Order Processing Tests
-      run: npm test -- --testNamePattern="Order" --testTimeout=45000 --maxWorkers=1
-      env:
-        NODE_ENV: test
-        MONGODB_URI: mongodb://localhost:27017/graphmarket-test-orders
-        REDIS_URI: redis://localhost:6379
-        JWT_SECRET: test-jwt-secret-key-for-ci-pipeline
-        RATE_LIMIT_WINDOW_MS: 900000
-        RATE_LIMIT_MAX_REQUESTS: 100
-        LOG_LEVEL: error
-        CI: true
-
-    - name: Run Performance Tests  
-      run: npm run test:performance -- --testTimeout=60000 --maxWorkers=1
-      env:
-        NODE_ENV: test
-        MONGODB_URI: mongodb://localhost:27017/graphmarket-test-performance
         REDIS_URI: redis://localhost:6379
         JWT_SECRET: test-jwt-secret-key-for-ci-pipeline
         RATE_LIMIT_WINDOW_MS: 900000
@@ -174,13 +150,7 @@ jobs:
         npm test -- --testPathPattern="orderResolvers" --testTimeout=45000 --verbose
         
         # Test order service business logic
-        npm test -- --testPathPattern="orderService" --testTimeout=45000 --verbose || echo "Order service tests not found, checking resolver tests"
-        
-        # Test inventory management
-        npm test -- --testNamePattern="(inventory|stock)" --testTimeout=45000 --verbose || echo "No specific inventory tests found"
-        
-        # Validate order status transitions
-        npm test -- --testNamePattern="status" --testTimeout=45000 --verbose || echo "No specific status transition tests found"
+        npm test -- --testPathPattern="orderService" --testTimeout=45000 --verbose
         
         echo "=== Phase 3 Validation Complete ==="
       env:

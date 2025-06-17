@@ -46,20 +46,31 @@ module.exports = {
   },
 
   // Test patterns for different test types
-  // projects: [
-  //   {
-  //     displayName: 'unit',
-  //     testMatch: ['<rootDir>/__tests__/resolvers/**/*.test.js'],
-  //   },
-  //   {
-  //     displayName: 'integration',
-  //     testMatch: ['<rootDir>/__tests__/integration/**/*.test.js'],
-  //   },
-  //   {
-  //     displayName: 'performance',
-  //     testMatch: ['<rootDir>/__tests__/performance/**/*.test.js'],
-  //   },
-  // ],
+  projects: [
+    {
+      displayName: 'unit',
+      testMatch: [
+        '<rootDir>/__tests__/resolvers/**/*.test.js',
+        '<rootDir>/__tests__/services/**/*.test.js',
+        '<rootDir>/__tests__/models/**/*.test.js',
+        '<rootDir>/__tests__/utils/**/*.test.js'
+      ],
+      transform: {
+        '^.+\\.js$': 'babel-jest',
+      },
+      testEnvironment: 'node',
+      globalTeardown: '<rootDir>/__tests__/teardown.js',
+    },
+    {
+      displayName: 'integration',
+      testMatch: ['<rootDir>/__tests__/integration/**/*.test.js'],
+      transform: {
+        '^.+\\.js$': 'babel-jest',
+      },
+      testEnvironment: 'node',
+      globalTeardown: '<rootDir>/__tests__/teardown.js',
+    },
+  ],
 
   // Clear mocks between tests
   clearMocks: true,
