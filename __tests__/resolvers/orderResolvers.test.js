@@ -5,7 +5,7 @@ import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { orderResolvers } from '../../src/resolvers/orderResolvers.js';
 import { generateToken } from '../../src/utils/auth.js';
-import { connectDB, disconnectDB } from '../../src/config/database.js';
+// import { connectDB, disconnectDB } from '../../src/config/database.js'; // No longer needed here
 
 jest.mock('../../src/utils/logging.js', () => ({
   logger: {
@@ -16,6 +16,7 @@ jest.mock('../../src/utils/logging.js', () => ({
   },
 }));
 
+/*
 beforeAll(async () => {
   await connectDB();
 });
@@ -23,6 +24,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await disconnectDB();
 });
+*/
 
 describe('Order Resolvers', () => {
   let mockUser, mockAdmin, mockProduct, mockOrder;

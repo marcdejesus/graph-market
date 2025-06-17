@@ -4,7 +4,7 @@ import { Product } from '../../src/models/Product.js';
 import { User } from '../../src/models/User.js';
 import { GraphQLError } from 'graphql';
 import mongoose from 'mongoose';
-import { connectDB, disconnectDB } from '../../src/config/database.js';
+// import { connectDB, disconnectDB } from '../../src/config/database.js'; // No longer needed here
 
 // Mock the logger
 jest.mock('../../src/utils/logging.js', () => ({
@@ -16,6 +16,7 @@ jest.mock('../../src/utils/logging.js', () => ({
   },
 }));
 
+/*
 beforeAll(async () => {
   await connectDB();
 });
@@ -23,6 +24,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await disconnectDB();
 });
+*/
 
 describe('OrderService', () => {
   let mockUser, mockProduct1, mockProduct2, mockOrder;
