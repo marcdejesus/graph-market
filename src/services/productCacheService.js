@@ -76,13 +76,13 @@ export class ProductCacheService {
     for (const key of sortedKeys) {
       const value = filter[key];
       
-      // Normalize string values
-      if (typeof value === 'string') {
-        normalized[key] = value.toLowerCase().trim();
-      }
-      // Normalize number ranges
-      else if (key === 'minPrice' || key === 'maxPrice') {
+      // Normalize number ranges FIRST (before string check)
+      if (key === 'minPrice' || key === 'maxPrice') {
         normalized[key] = Number(value) || 0;
+      }
+      // Normalize string values
+      else if (typeof value === 'string') {
+        normalized[key] = value.toLowerCase().trim();
       }
       // Normalize boolean values
       else if (typeof value === 'boolean') {

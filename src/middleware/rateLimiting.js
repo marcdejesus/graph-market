@@ -74,7 +74,7 @@ export const createGraphQLRateLimiter = (options = {}) => {
   const operationCounts = new Map();
 
   return (req, res, next) => {
-    const clientIP = req.ip || req.connection.remoteAddress;
+    const clientIP = req.ip || (req.connection && req.connection.remoteAddress) || '127.0.0.1';
     const now = Date.now();
     
     // Parse GraphQL operation
