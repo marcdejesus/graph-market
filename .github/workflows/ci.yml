@@ -10,6 +10,7 @@ permissions:
   contents: read
   security-events: write
   actions: read
+  packages: write
 
 env:
   NODE_VERSION: '20'
@@ -191,8 +192,19 @@ jobs:
         echo "Waiting for MongoDB..."
         timeout 60 bash -c 'until nc -z localhost 27017; do echo "Waiting for MongoDB..."; sleep 2; done'
         echo "MongoDB port is open!"
-        echo "Testing MongoDB connection..."
-        timeout 60 bash -c 'until mongosh --eval "db.runCommand({ping:1})" --quiet; do echo "MongoDB not ready..."; sleep 3; done'
+        echo "Testing MongoDB connection with Node.js..."
+        timeout 60 bash -c 'until node -e "
+          const { MongoClient } = require(\"mongodb\");
+          const client = new MongoClient(\"mongodb://localhost:27017\");
+          client.connect().then(() => {
+            console.log(\"MongoDB connected!\");
+            client.close();
+            process.exit(0);
+          }).catch((err) => {
+            console.log(\"MongoDB not ready:\", err.message);
+            process.exit(1);
+          });
+        "; do echo "MongoDB not ready, retrying..."; sleep 3; done'
         echo "MongoDB is ready!"
         echo "Waiting for Redis..."
         timeout 30 bash -c 'until nc -z localhost 6379; do echo "Waiting for Redis..."; sleep 1; done'
@@ -370,7 +382,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
