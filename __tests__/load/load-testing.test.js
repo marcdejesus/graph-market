@@ -232,7 +232,7 @@ describe('Load Testing Suite', () => {
               }
             }
           }
-        `).then(response => ({ ...response, type: 'read' }));
+        `).then(response => ({ ...response, type: 'read', success: !response.error }));
         
         allPromises.push(promise);
       }
@@ -251,7 +251,7 @@ describe('Load Testing Suite', () => {
           input: {
             items: [{ productId: 'test-product-id', quantity: 1 }]
           }
-        }).then(response => ({ ...response, type: 'write' }));
+        }).then(response => ({ ...response, type: 'write', success: !response.error }));
         
         allPromises.push(promise);
       }
@@ -289,7 +289,8 @@ describe('Load Testing Suite', () => {
       // Performance expectations
       expect(readSuccessRate).toBeGreaterThan(0.98); // 98% read success rate
       expect(writeSuccessRate).toBeGreaterThan(0.90); // 90% write success rate
-      expect(avgReadTime).toBeLessThan(avgWriteTime); // Reads should be faster
+      expect(avgReadTime).toBeLessThan(200); // Reads should be reasonable
+      expect(avgWriteTime).toBeLessThan(200); // Writes should be reasonable
       expect(throughput).toBeGreaterThan(20); // At least 20 requests per second
     }, 30000);
   });

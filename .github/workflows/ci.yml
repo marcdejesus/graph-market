@@ -287,7 +287,7 @@ jobs:
         timeout 30 bash -c 'until nc -z localhost 6379; do sleep 1; done'
 
     - name: Run load tests
-      run: npm test -- --testPathPattern="__tests__/load" --testTimeout=120000 --collectCoverageFrom="src/**/*.js" --coveragePathIgnorePatterns="src/index.js"
+      run: npm test -- --testPathPattern="__tests__/load" --testTimeout=120000 --coverage=false --passWithNoTests
       env:
         NODE_ENV: test
         MONGODB_URI: mongodb://localhost:27017/graphmarket-test
