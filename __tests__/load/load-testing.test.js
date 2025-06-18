@@ -1,5 +1,5 @@
 import { performance } from 'perf_hooks';
-import { ensureTestDBConnection, closeTestDBConnection } from '../setup.js';
+import { setupTestDatabase, teardownTestDatabase } from '../setup.js';
 import { User } from '../../src/models/User.js';
 import { Product } from '../../src/models/Product.js';
 import { Order } from '../../src/models/Order.js';
@@ -60,12 +60,12 @@ describe('Load Testing Suite', () => {
   let testProducts = [];
 
   beforeAll(async () => {
-    await ensureTestDBConnection();
+    await setupTestDatabase();
     testClient = new LoadTestClient();
   });
 
   afterAll(async () => {
-    await closeTestDBConnection();
+    await teardownTestDatabase();
   });
 
   beforeEach(async () => {
