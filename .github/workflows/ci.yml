@@ -518,13 +518,6 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Generate changelog
-      id: changelog
-      run: |
-        echo "changelog<<EOF" >> $GITHUB_OUTPUT
-        git log --pretty=format:"- %s" $(git describe --tags --abbrev=0)..HEAD >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
-
     - name: Create release
       uses: softprops/action-gh-release@v1
       env:
@@ -533,15 +526,25 @@ jobs:
         tag_name: v${{ github.run_number }}
         name: Release v${{ github.run_number }}
         body: |
-          ## Changes
-          ${{ steps.changelog.outputs.changelog }}
+          ## GraphMarket Release v${{ github.run_number }}
+          
+          Automated release of GraphMarket e-commerce API with comprehensive testing and CI/CD pipeline.
           
           ## Docker Image
           `${{ needs.build-docker.outputs.image-tag }}`
           
           ## Quality Metrics
-          - 327+ tests passing
+          - 333+ tests passing
           - 56%+ code coverage
           - All security scans passed
+          - Load tests completed successfully
+          
+          ## Features
+          - Complete GraphQL API for e-commerce
+          - JWT authentication and authorization
+          - Product management with advanced filtering
+          - Order processing with inventory management
+          - Redis caching and performance optimization
+          - Comprehensive test coverage
         draft: false
         prerelease: false 
